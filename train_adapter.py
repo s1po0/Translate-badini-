@@ -23,6 +23,13 @@ def select_examples(rows, per_language, seed):
     return selected
 
 
+def limit_synthetic(rows, limit, seed):
+    """Sample without replacement, after the source-disjoint split."""
+    if limit <= 0 or len(rows) <= limit:
+        return rows
+    return random.Random(seed).sample(rows, limit)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", default="training_data/ferman_approximate_sorani_badini.csv")
@@ -31,13 +38,15 @@ def main():
     parser.add_argument("--initial-adapter", help="Previously trained LoRA adapter directory")
     parser.add_argument("--synthetic-data", help="Teacher-generated source_lang,source_text,badini CSV")
     parser.add_argument("--synthetic-repeats", type=int, default=5)
+    parser.add_argument("--synthetic-limit", type=int, default=0, help="Maximum synthetic training rows after splitting; 0 uses all")
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=300)
     parser.add_argument("--per-language", type=int, default=100)
     parser.add_argument("--eval-per-language", type=int, default=8)
     args = parser.parse_args()
-    if min(args.steps, args.per_language, args.eval_per_language, args.synthetic_repeats) <= 0:
-        parser.error("steps and sample sizes must be positive")
+    if min(args.steps, args.per_language, args.eval_per_language, args.synthetic_repeats) <= 0 or args.synthetic_limit < 0 or not 0 < args.learning_rate < float('inf'):
+        parser.error("steps, sample sizes and learning rate must be positive; synthetic-limit must be nonnegative")
 
     import torch
     from peft import LoraConfig, PeftConfig, PeftModel, TaskType, get_peft_model
@@ -68,6 +77,7 @@ def main():
         synthetic_rows, _ = split_pairs(synthetic_rows)
         if not synthetic_rows:
             raise ValueError("No synthetic examples remain after holding out evaluation sources.")
+        synthetic_rows = limit_synthetic(synthetic_rows, args.synthetic_limit, args.seed)
         synthetic_count = len(synthetic_rows)
         train_rows += synthetic_rows * args.synthetic_repeats
         random.Random(args.seed).shuffle(train_rows)
@@ -122,7 +132,7 @@ def main():
     options = Seq2SeqTrainingArguments(
         output_dir=str(out / "checkpoints"), max_steps=args.steps,
         per_device_train_batch_size=1, gradient_accumulation_steps=1,
-        learning_rate=1e-4, logging_steps=10, save_strategy="no", report_to="none",
+        learning_rate=args.learning_rate, logging_steps=10, save_strategy="no", report_to="none",
         dataloader_num_workers=0, use_cpu=True, seed=args.seed,
     )
     trainer = Seq2SeqTrainer(model=model, args=options, train_dataset=Pairs(train_rows), data_collator=collator)
@@ -131,7 +141,7 @@ def main():
     model.save_pretrained(str(out / "adapter"), safe_serialization=True)
     tokenizer.save_pretrained(str(out / "adapter"))
     report = {
-        "base_model": args.base, "optimizer_steps": args.steps, "training_pool_pairs": len(train_rows),
+        "base_model": args.base, "optimizer_steps": args.steps, "learning_rate": args.learning_rate, "training_pool_pairs": len(train_rows),
         "initial_adapter": args.initial_adapter, "synthetic_unique_rows": synthetic_count, "synthetic_repeats": args.synthetic_repeats if args.synthetic_data else 0,
         "training_by_language": {lang: sum(row[0] == lang for row in train_rows) for lang in ("en", "ar", "sorani")},
         "heldout_pairs": len(test_rows), "teacher_forced_loss_before": before,

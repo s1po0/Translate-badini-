@@ -57,3 +57,11 @@ class AdapterPageTest(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join()
+
+class SyntheticSelectionTest(unittest.TestCase):
+    def test_limit_is_deterministic_and_preserves_default(self):
+        from train_adapter import limit_synthetic
+        rows = list(range(100))
+        self.assertEqual(limit_synthetic(rows, 0, 1), rows)
+        self.assertEqual(limit_synthetic(rows, 10, 1), limit_synthetic(rows, 10, 1))
+        self.assertEqual(len(set(limit_synthetic(rows, 10, 1))), 10)

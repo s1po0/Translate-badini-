@@ -1,0 +1,80 @@
+name: Train with checked words and balanced replay
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/balanced-word-training.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU training dependencies
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-word-training-result
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: prior-words
+      - uses: actions/download-artifact@v4
+        with:
+          name: numbered-word-distillation
+          run-id: 40991850346
+          github-token: ${{ github.token }}
+          path: prior-adapter
+      - name: Filter teacher words against training references
+        run: |
+          set -eu
+          attempts="$(find prior-words -name attempts.csv -type f -print -quit)"
+          test -n "$attempts"
+          python tools/filter_dictionary_agreement.py "$attempts" --output output/checked.csv --report output/filter-report.json
+          python -c "import json; assert json.load(open('output/filter-report.json')).get('reference_agree', 0) > 0"
+      - name: Locate previous accepted adapter
+        run: |
+          set -eu
+          adapter="$(find prior-adapter -type d -name accepted-adapter -print -quit)"
+          test -f "$adapter/adapter_config.json"
+          printf '%s' "$adapter" > /tmp/accepted-adapter
+      - name: Train candidate on balanced replay and checked words
+        run: |
+          python train_adapter.py --initial-adapter "$(cat /tmp/accepted-adapter)" --synthetic-data output/checked.csv --synthetic-repeats 1 --synthetic-limit 300 --steps 1200 --per-language 200 --eval-per-language 20 --learning-rate 0.00002 --output output/candidate
+      - name: Compare held-out word translations
+        run: |
+          python tools/evaluate_word_quality.py --before "$(cat /tmp/accepted-adapter)" --after output/candidate/adapter --size 100 --output output/word-evaluation.json
+      - name: Promote only if language loss and word evaluation pass
+        run: |
+          python - <<'PY'
+          import json, pathlib, shutil
+          from continuous_training import accepted
+          root = pathlib.Path('output')
+          report = json.loads((root / 'candidate/report.json').read_text())
+          word = json.loads((root / 'word-evaluation.json').read_text())
+          loss_pass = accepted(report, .03)
+          word_pass = word['after_exact'] >= word['before_exact'] - max(1, int(word['examples'] * .02))
+          keep = loss_pass and word_pass
+          prior = pathlib.Path('/tmp/accepted-adapter').read_text()
+          shutil.copytree(root / 'candidate/adapter' if keep else prior, root / 'accepted-adapter')
+          decision = {'candidate_accepted': keep, 'loss_guard_pass': loss_pass, 'word_guard_pass': word_pass,
+                      'limitation': 'Small held-out metrics are not a guarantee of translation quality.'}
+          (root / 'decision.json').write_text(json.dumps(decision, indent=2))
+          print('::notice title=Balanced training decision::' + json.dumps(decision))
+          print('::notice title=Balanced training report::' + json.dumps(report))
+          PY
+      - name: Upload audit, candidate and selected checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balanced-word-training
+          path: output/
+          if-no-files-found: warn
+          retention-days: 90

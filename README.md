@@ -196,3 +196,24 @@ currently running public demo does not automatically switch checkpoints.
 `.github/workflows/continuous-badini-test.yml` performs two real rounds on a
 GitHub runner and uploads the resulting checkpoints for 30 days. It is a
 finite test: GitHub jobs cannot run forever and runners have usage limits.
+
+## Word-list quality audit and safer experiment
+
+The full teacher run attempted 370,105 numbered words but a script-only check
+cannot verify Badini or semantic correctness. The audit in
+`trained/word-audit.json` found 240,132 outputs without Arabic script and
+202,993 unchanged English outputs; 129,973 passed the script check, which is
+not validation. Some outputs resemble Sorani or are otherwise inaccurate. The
+previous all-word candidate was rejected because English held-out loss
+exceeded the 3% regression guard; the old accepted adapter was retained.
+
+The balanced experiment filters outputs by normalized spelling agreement with
+existing *training-side* Badini dictionary references. This conservatively
+reuses known pairs, not newly verified translations, and can miss valid
+alternatives. It limits their share relative to replay, uses a smaller learning
+rate and evaluates a larger source-disjoint sample. It also compares normalized
+exact matches on held-out English dictionary words. Loss and exact-match guards
+are imperfect; dictionary references may contain errors and the base may have
+seen them. No model is automatically promoted on failed guards. The 90-day
+GitHub artifacts are temporary and the demo does not automatically load the
+new checkpoint.

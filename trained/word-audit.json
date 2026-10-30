@@ -1,0 +1,154 @@
+{
+  "attempts": 370105,
+  "script_pass": 129973,
+  "script_fail": 240132,
+  "blank_output": 138,
+  "unchanged": 202993,
+  "contains_latin": 240767,
+  "distinct_nonempty_outputs": 319863,
+  "most_common_outputs": [
+    [
+      "بێبۆنەیی",
+      199
+    ],
+    [
+      "بێبایی",
+      196
+    ],
+    [
+      "گێژکاری",
+      139
+    ],
+    [
+      "پێداچوونەوە",
+      121
+    ],
+    [
+      "زیادکاری",
+      117
+    ],
+    [
+      "زیادکردن",
+      112
+    ],
+    [
+      "بێزاری",
+      109
+    ],
+    [
+      "زیاد کردن",
+      107
+    ],
+    [
+      "پیشبینی",
+      106
+    ],
+    [
+      "گەندەڵی",
+      105
+    ]
+  ],
+  "samples": {
+    "bad": {
+      "id": "026160",
+      "output": "بد",
+      "script_valid": true
+    },
+    "beautiful": {
+      "id": "029676",
+      "output": "جوان ئە",
+      "script_valid": true
+    },
+    "book": {
+      "id": "038041",
+      "output": "پەرتووکە",
+      "script_valid": true
+    },
+    "cat": {
+      "id": "049168",
+      "output": "cat",
+      "script_valid": false
+    },
+    "dog": {
+      "id": "090842",
+      "output": "سەگان",
+      "script_valid": true
+    },
+    "eat": {
+      "id": "094956",
+      "output": "خوار",
+      "script_valid": true
+    },
+    "father": {
+      "id": "110267",
+      "output": "باڤێ",
+      "script_valid": true
+    },
+    "friend": {
+      "id": "118950",
+      "output": "دوست",
+      "script_valid": true
+    },
+    "go": {
+      "id": "127164",
+      "output": "بڕۆ",
+      "script_valid": true
+    },
+    "good": {
+      "id": "127872",
+      "output": "good",
+      "script_valid": false
+    },
+    "hello": {
+      "id": "135730",
+      "output": "سڵاو",
+      "script_valid": true
+    },
+    "house": {
+      "id": "144383",
+      "output": "ماڵ",
+      "script_valid": true
+    },
+    "love": {
+      "id": "175537",
+      "output": "خۆشەویستی",
+      "script_valid": true
+    },
+    "moon": {
+      "id": "193022",
+      "output": "مانگ",
+      "script_valid": true
+    },
+    "mother": {
+      "id": "193936",
+      "output": "mother",
+      "script_valid": false
+    },
+    "one": {
+      "id": "212719",
+      "output": "یەکی",
+      "script_valid": true
+    },
+    "school": {
+      "id": "280427",
+      "output": "قوتابخانێ",
+      "script_valid": true
+    },
+    "sun": {
+      "id": "311027",
+      "output": "خۆر",
+      "script_valid": true
+    },
+    "two": {
+      "id": "333498",
+      "output": "دوو",
+      "script_valid": true
+    },
+    "water": {
+      "id": "363108",
+      "output": "ئاوا",
+      "script_valid": true
+    }
+  },
+  "caveat": "Script checks and repetition statistics do not verify Badini dialect or translation accuracy."
+}

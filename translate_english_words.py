@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--output', required=True)
     parser.add_argument('--teacher', default='arkanit/badini-nllb-translator')
+    parser.add_argument('--adapter', help='Optional fine-tuned LoRA adapter on the teacher base')
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error('batch-size must be positive')
@@ -71,8 +72,15 @@ def main():
     import torch
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
     torch.set_num_threads(2)
-    tokenizer = AutoTokenizer.from_pretrained(args.teacher, src_lang='eng_Latn')
+    if args.adapter:
+        from peft import PeftConfig, PeftModel
+        config = PeftConfig.from_pretrained(args.adapter)
+        if config.base_model_name_or_path != args.teacher:
+            raise ValueError('Teacher and adapter base model do not match')
+    tokenizer = AutoTokenizer.from_pretrained(args.adapter or args.teacher, src_lang='eng_Latn')
     model = AutoModelForSeq2SeqLM.from_pretrained(args.teacher, low_cpu_mem_usage=True)
+    if args.adapter:
+        model = PeftModel.from_pretrained(model, args.adapter)
     model.eval()
 
     def translate(items):

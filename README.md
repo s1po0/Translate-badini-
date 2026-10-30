@@ -323,3 +323,7 @@ The selected `balanced` candidate reduced mean held-out loss from 3.0036 to
 a general improvement. The selected adapter is available in the
 `parallel-badini-selected` artifact until 2027-01-28; detailed results are in
 `trained/parallel-report.json`.
+
+### Long, parallel related-teacher experiment
+
+`multi-teacher-long-training.yml` compares 4,096 numbered English-word attempts from the original Badini NLLB teacher against newly generated outputs from its own previously fine-tuned adapter, in four parallel jobs. These are **two versions of the same base model**, not independent Badini foundation models, and no Gemini API is used. Only normalized text agreements that also pass an Arabic-script check enter the synthetic training dataset; neither test establishes dialect or semantic correctness. Four independent candidate adapters then train in parallel from the same previous selected checkpoint (6,000–9,000 optimizer steps, six-hour per-job limit). They are compared on small source-disjoint tests and the previous adapter is retained if none passes the guards. The candidates are not merged, and completion, selection, and model quality must be checked in the run; no live model is automatically updated.

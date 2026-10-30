@@ -1,0 +1,145 @@
+name: Long parallel Badini teacher training
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/multi-teacher-long-training.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare-teachers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        start: [1, 50001, 150001, 250001]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - name: Retrieve previous baseline teacher attempts
+        uses: actions/download-artifact@v4
+        with:
+          name: word-batch-${{ matrix.start }}
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: old
+      - name: Retrieve the selected trained adapter
+        uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Generate the trained teacher's answers and compare
+        run: |
+          adapter="$(find previous -type d -name accepted-adapter -print -quit)"
+          old="$(find old -name attempts.csv -type f -print -quit)"
+          test -f "$adapter/adapter_config.json" && test -f "$old"
+          python translate_english_words.py --adapter "$adapter" --start '${{ matrix.start }}' --count 1024 --batch-size 8 --output adapted
+          mkdir -p compared
+          python tools/teacher_consensus.py compare --old "$old" --adapted adapted/attempts.csv --output compared/agreement.csv --report compared/report.json
+      - name: Save attempts and comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-comparison-${{ matrix.start }}
+          path: |
+            adapted/attempts.csv
+            compared/
+          retention-days: 7
+  combine:
+    needs: compare-teachers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: teacher-comparison-*
+          path: comparisons
+      - name: Check all segments and combine agreements
+        run: |
+          test "$(find comparisons -name agreement.csv | wc -l)" -eq 4
+          mkdir -p consensus
+          python tools/teacher_consensus.py combine --input comparisons --output consensus/synthetic.csv --report consensus/report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: two-related-teacher-agreement
+          path: consensus/
+          retention-days: 90
+  train:
+    needs: combine
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {name: careful, steps: 6000, limit: 300, repeats: 1, lr: '0.00001'}
+          - {name: balanced, steps: 7000, limit: 500, repeats: 1, lr: '0.00002'}
+          - {name: broad, steps: 8000, limit: 0, repeats: 1, lr: '0.00002'}
+          - {name: repeated, steps: 9000, limit: 0, repeats: 2, lr: '0.00001'}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: previous
+      - uses: actions/download-artifact@v4
+        with:
+          name: two-related-teacher-agreement
+          path: consensus
+      - name: Train one independent candidate and test it
+        run: |
+          adapter="$(find previous -type d -name accepted-adapter -print -quit)"
+          test -f "$adapter/adapter_config.json" && test -f consensus/synthetic.csv
+          python train_adapter.py --initial-adapter "$adapter" --synthetic-data consensus/synthetic.csv --synthetic-repeats '${{ matrix.repeats }}' --synthetic-limit '${{ matrix.limit }}' --steps '${{ matrix.steps }}' --per-language 200 --eval-per-language 20 --learning-rate '${{ matrix.lr }}' --seed 42 --output candidate
+          python tools/evaluate_word_quality.py --before "$adapter" --after candidate/adapter --size 100 --output candidate/word-evaluation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: long-candidate-${{ matrix.name }}
+          path: candidate/
+          retention-days: 3
+  select:
+    needs: train
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: previous
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: long-candidate-*
+          path: candidates
+      - name: Compare all four and retain baseline if guards fail
+        run: |
+          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 4
+          python tools/select_parallel_candidate.py --candidates candidates --baseline previous --output selected
+      - uses: actions/upload-artifact@v4
+        with:
+          name: long-multi-teacher-selected
+          path: selected/
+          retention-days: 90

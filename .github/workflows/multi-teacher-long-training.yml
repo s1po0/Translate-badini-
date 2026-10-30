@@ -13,9 +13,29 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 20
       matrix:
-        start: [1, 25001, 50001, 75001, 100001, 150001, 200001, 250001]
+        include:
+          - {start: 1, original_batch: 1}
+          - {start: 25001, original_batch: 25001}
+          - {start: 50001, original_batch: 50001}
+          - {start: 75001, original_batch: 75001}
+          - {start: 100001, original_batch: 100001}
+          - {start: 125001, original_batch: 125001}
+          - {start: 150001, original_batch: 150001}
+          - {start: 175001, original_batch: 175001}
+          - {start: 200001, original_batch: 200001}
+          - {start: 225001, original_batch: 225001}
+          - {start: 250001, original_batch: 250001}
+          - {start: 275001, original_batch: 275001}
+          - {start: 300001, original_batch: 300001}
+          - {start: 325001, original_batch: 325001}
+          - {start: 350001, original_batch: 350001}
+          - {start: 1025, original_batch: 1}
+          - {start: 26025, original_batch: 25001}
+          - {start: 51025, original_batch: 50001}
+          - {start: 76025, original_batch: 75001}
+          - {start: 101025, original_batch: 100001}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,7 +48,7 @@ jobs:
       - name: Retrieve previous baseline teacher attempts
         uses: actions/download-artifact@v4
         with:
-          name: word-batch-${{ matrix.start }}
+          name: word-batch-${{ matrix.original_batch }}
           run-id: 40992691510
           github-token: ${{ github.token }}
           path: old
@@ -67,7 +87,7 @@ jobs:
           path: comparisons
       - name: Check all segments and combine agreements
         run: |
-          test "$(find comparisons -name agreement.csv | wc -l)" -eq 8
+          test "$(find comparisons -name agreement.csv | wc -l)" -eq 20
           mkdir -p consensus
           python tools/teacher_consensus.py combine --input comparisons --output consensus/synthetic.csv --report consensus/report.json
       - uses: actions/upload-artifact@v4
@@ -81,17 +101,15 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 20
       matrix:
-        include:
-          - {name: careful, steps: 6000, limit: 300, repeats: 1, lr: '0.00001'}
-          - {name: balanced, steps: 7000, limit: 500, repeats: 1, lr: '0.00002'}
-          - {name: broad, steps: 8000, limit: 0, repeats: 1, lr: '0.00002'}
-          - {name: repeated, steps: 9000, limit: 0, repeats: 2, lr: '0.00001'}
-          - {name: precise, steps: 6000, limit: 500, repeats: 2, lr: '0.00001'}
-          - {name: expansive, steps: 7000, limit: 1000, repeats: 1, lr: '0.000015'}
-          - {name: focused, steps: 8000, limit: 700, repeats: 2, lr: '0.000015'}
-          - {name: extensive, steps: 9000, limit: 0, repeats: 1, lr: '0.000015'}
+        steps: [6000, 7000, 8000, 9000]
+        profile:
+          - {name: careful, limit: 300, repeats: 1, lr: '0.00001'}
+          - {name: balanced, limit: 500, repeats: 1, lr: '0.00002'}
+          - {name: broad, limit: 0, repeats: 1, lr: '0.000015'}
+          - {name: focused, limit: 700, repeats: 2, lr: '0.000015'}
+          - {name: repeated, limit: 0, repeats: 2, lr: '0.00001'}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -115,13 +133,13 @@ jobs:
         run: |
           adapter="$(find previous -type d -name accepted-adapter -print -quit)"
           test -f "$adapter/adapter_config.json" && test -f consensus/synthetic.csv
-          python train_adapter.py --initial-adapter "$adapter" --synthetic-data consensus/synthetic.csv --synthetic-repeats '${{ matrix.repeats }}' --synthetic-limit '${{ matrix.limit }}' --steps '${{ matrix.steps }}' --per-language 200 --eval-per-language 20 --learning-rate '${{ matrix.lr }}' --seed 42 --output candidate
+          python train_adapter.py --initial-adapter "$adapter" --synthetic-data consensus/synthetic.csv --synthetic-repeats '${{ matrix.profile.repeats }}' --synthetic-limit '${{ matrix.profile.limit }}' --steps '${{ matrix.steps }}' --per-language 200 --eval-per-language 20 --learning-rate '${{ matrix.profile.lr }}' --seed 42 --output candidate
           python tools/evaluate_word_quality.py --before "$adapter" --after candidate/adapter --size 100 --output candidate/word-evaluation.json
       - uses: actions/upload-artifact@v4
         with:
-          name: long-candidate-${{ matrix.name }}
+          name: long-candidate-${{ matrix.profile.name }}-${{ matrix.steps }}
           path: candidate/
-          retention-days: 3
+          retention-days: 2
   select:
     needs: train
     runs-on: ubuntu-latest
@@ -138,9 +156,9 @@ jobs:
         with:
           pattern: long-candidate-*
           path: candidates
-      - name: Compare all eight and retain baseline if guards fail
+      - name: Compare all twenty and retain baseline if guards fail
         run: |
-          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 8
+          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 20
           python tools/select_parallel_candidate.py --candidates candidates --baseline previous --output selected
       - uses: actions/upload-artifact@v4
         with:

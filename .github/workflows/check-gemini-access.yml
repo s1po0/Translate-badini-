@@ -1,0 +1,21 @@
+name: Check Gemini configuration
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/check-gemini-access.yml']
+  workflow_dispatch:
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check whether Gemini is configured without revealing credentials
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo '::notice title=Gemini configuration::A Gemini key is configured. Free-tier billing and access have not been verified.'
+          else
+            echo '::notice title=Gemini configuration::No GEMINI_API_KEY is configured for this workflow.'
+          fi

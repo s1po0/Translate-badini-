@@ -1,0 +1,27 @@
+name: Inspect open Badini corpus
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/inspect-dasinya.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify published archive
+        run: |
+          curl -fL --retry 3 --connect-timeout 30 'https://zenodo.org/records/20729060/files/dasinya_bdpt_zenodo.zip?download=1' -o /tmp/dasinya.zip
+          echo '9b5eb5b314d542837f3678284b47d725  /tmp/dasinya.zip' | md5sum --check
+      - name: Inspect segmented text and metadata
+        run: |
+          python - <<'PY'
+          import json, zipfile
+          with zipfile.ZipFile('/tmp/dasinya.zip') as z:
+              files = [x for x in z.namelist() if x.replace('\\','/').startswith('corpus/3_segmented/') and x.endswith('.txt')]
+              print('::notice title=Corpus layout::'+json.dumps({'segmented_files':len(files),'first_files':files[:3], 'sample':z.read(files[0]).decode('utf-8-sig')[:1500]},ensure_ascii=True))
+              if not files: raise ValueError('No segmented corpus found')
+          PY

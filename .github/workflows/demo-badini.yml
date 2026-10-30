@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   actions: read
+  statuses: write
 
 jobs:
   demo:
@@ -86,8 +87,17 @@ jobs:
           else:
               print('::error::Public demo did not respond to its health check.')
               raise SystemExit(1)
+          pathlib.Path('/tmp/badini-demo-url').write_text(url, encoding='utf-8')
           print(f'::notice title=Public demo URL::{url}', flush=True)
           print(f'Public temporary demo URL: {url}', flush=True)
           PY
+      - name: Publish the demo address as a commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="$(cat /tmp/badini-demo-url)"
+          gh api --silent --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state=success -f context=arena-badini-demo -f target_url="$url" \
+            -f description='Temporary public Badini demo (30 minutes)'
       - name: Keep the public demo online for 30 minutes
         run: sleep 1800

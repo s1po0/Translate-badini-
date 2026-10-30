@@ -1,0 +1,45 @@
+{
+  "selected": "parallel-candidate-balanced",
+  "candidates": [
+    {
+      "name": "parallel-candidate-alternative",
+      "loss_pass": true,
+      "word_pass": true,
+      "overall_loss_before": 3.003594735513131,
+      "overall_loss_after": 2.979273789872726,
+      "word_exact_before": 6,
+      "word_exact_after": 6
+    },
+    {
+      "name": "parallel-candidate-balanced",
+      "loss_pass": true,
+      "word_pass": true,
+      "overall_loss_before": 3.003594735513131,
+      "overall_loss_after": 2.950430703908205,
+      "word_exact_before": 6,
+      "word_exact_after": 6
+    },
+    {
+      "name": "parallel-candidate-broader",
+      "loss_pass": true,
+      "word_pass": true,
+      "overall_loss_before": 3.003594735513131,
+      "overall_loss_after": 2.9543941505253315,
+      "word_exact_before": 6,
+      "word_exact_after": 6
+    },
+    {
+      "name": "parallel-candidate-cautious",
+      "loss_pass": true,
+      "word_pass": true,
+      "overall_loss_before": 3.003647020459175,
+      "overall_loss_after": 2.9722256970902285,
+      "word_exact_before": 6,
+      "word_exact_after": 6
+    }
+  ],
+  "limitation": "Small non-independent tests, exact matches and loss do not establish real-world quality; synthetic labels are unverified.",
+  "run_url": "https://github.com/s1po0/Translate-badini-/actions/runs/41047507896",
+  "selected_artifact": "parallel-badini-selected",
+  "expires_at": "2027-01-28T11:21:29Z"
+}

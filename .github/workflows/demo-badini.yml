@@ -25,12 +25,12 @@ jobs:
         run: |
           python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
           python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
-      - name: Download the latest accepted corpus adapter
+      - name: Download the parallel-selected adapter
         uses: actions/download-artifact@v4
         with:
-          name: dasinya-badini-student
+          name: parallel-badini-selected
           path: models/badini-corpus
-          run-id: 41041856775
+          run-id: 41047507896
           github-token: ${{ github.token }}
       - name: Locate the accepted adapter
         run: |

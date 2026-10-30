@@ -315,3 +315,11 @@ small repeated evaluations and unverified teacher labels do not establish
 real-world improvement. Candidate artifacts expire after 2 days and the
 selected adapter after 90 days. This is separate from the sequential full-data
 training, whose stages depend on the preceding checkpoint.
+
+The first four-job comparison completed in
+[run 41047507896](https://github.com/s1po0/Translate-badini-/actions/runs/41047507896).
+The selected `balanced` candidate reduced mean held-out loss from 3.0036 to
+2.9504, while exact matches remained 6/100; neither establishes accuracy or
+a general improvement. The selected adapter is available in the
+`parallel-badini-selected` artifact until 2027-01-28; detailed results are in
+`trained/parallel-report.json`.

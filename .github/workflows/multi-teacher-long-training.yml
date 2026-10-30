@@ -13,9 +13,9 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 8
       matrix:
-        start: [1, 50001, 150001, 250001]
+        start: [1, 25001, 50001, 75001, 100001, 150001, 200001, 250001]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -67,7 +67,7 @@ jobs:
           path: comparisons
       - name: Check all segments and combine agreements
         run: |
-          test "$(find comparisons -name agreement.csv | wc -l)" -eq 4
+          test "$(find comparisons -name agreement.csv | wc -l)" -eq 8
           mkdir -p consensus
           python tools/teacher_consensus.py combine --input comparisons --output consensus/synthetic.csv --report consensus/report.json
       - uses: actions/upload-artifact@v4
@@ -81,13 +81,17 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 8
       matrix:
         include:
           - {name: careful, steps: 6000, limit: 300, repeats: 1, lr: '0.00001'}
           - {name: balanced, steps: 7000, limit: 500, repeats: 1, lr: '0.00002'}
           - {name: broad, steps: 8000, limit: 0, repeats: 1, lr: '0.00002'}
           - {name: repeated, steps: 9000, limit: 0, repeats: 2, lr: '0.00001'}
+          - {name: precise, steps: 6000, limit: 500, repeats: 2, lr: '0.00001'}
+          - {name: expansive, steps: 7000, limit: 1000, repeats: 1, lr: '0.000015'}
+          - {name: focused, steps: 8000, limit: 700, repeats: 2, lr: '0.000015'}
+          - {name: extensive, steps: 9000, limit: 0, repeats: 1, lr: '0.000015'}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -134,9 +138,9 @@ jobs:
         with:
           pattern: long-candidate-*
           path: candidates
-      - name: Compare all four and retain baseline if guards fail
+      - name: Compare all eight and retain baseline if guards fail
         run: |
-          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 4
+          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 8
           python tools/select_parallel_candidate.py --candidates candidates --baseline previous --output selected
       - uses: actions/upload-artifact@v4
         with:

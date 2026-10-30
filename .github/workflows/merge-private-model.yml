@@ -1,0 +1,36 @@
+name: Build a private standalone translation model
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/merge-private-model.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install merge runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2' 'hf_xet'
+      - name: Validate privacy checks
+        run: python -m unittest discover -s tests -p test_merge_private_model.py
+      - name: Merge, compare, reload, and privately upload
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python tools/merge_private_model.py > merge.log 2>&1
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            python -c "from pathlib import Path; print('::error title=Private model merge failed::' + Path('merge.log').read_text()[-2500:].replace('%','%25').replace('\n','%0A').replace('\r','%0D'))"
+            exit "$code"
+          fi
+          echo '::notice title=Private model merge::Merge, comparison, reload and private upload completed.'

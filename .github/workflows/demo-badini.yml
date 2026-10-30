@@ -25,18 +25,22 @@ jobs:
         run: |
           python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
           python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
-      - name: Download the trained adapter
+      - name: Download the latest accepted corpus adapter
         uses: actions/download-artifact@v4
         with:
-          name: badini-adapter
-          path: models/badini-adapter
-          run-id: 40986771788
+          name: dasinya-badini-student
+          path: models/badini-corpus
+          run-id: 41041856775
           github-token: ${{ github.token }}
+      - name: Locate the accepted adapter
+        run: |
+          adapter="$(find models/badini-corpus -type d -name accepted-adapter -print -quit)"
+          test -f "$adapter/adapter_config.json"
+          echo "BADINI_ADAPTER_DIR=$adapter" >> "$GITHUB_ENV"
       - name: Start and publish the temporary demo
         env:
-          HOST: 0.0.0.0
+          HOST: 127.0.0.1
           PORT: '8000'
-          BADINI_ADAPTER_DIR: models/badini-adapter/adapter
           PUBLIC_DEMO: '1'
         run: |
           set -eu

@@ -44,9 +44,10 @@ def decide(report, words):
 
 def update_card(original, decision, run_id):
     before = decision['heldout_loss_before']; after = decision['heldout_loss_after']
+    dataset = decision.get('dataset_description', 'unverified teacher-agreement pairs')
     line = (f'{START}\nThe current adapter is a guarded fine-tuning of the previous Hugging Face checkpoint. '
             f'[Training run {run_id}](https://github.com/s1po0/Translate-badini-/actions/runs/{run_id}) '
-            f'used {decision["teacher_pairs_in_training_pool"]} unverified teacher-agreement pairs. '
+            f'used {decision["teacher_pairs_in_training_pool"]} {dataset}. '
             f'Held-out loss was {before:.4f} before and {after:.4f} after; exact dictionary matches '
             f'were {decision["word_exact_before"]}/{decision["word_examples"]} before and '
             f'{decision["word_exact_after"]}/{decision["word_examples"]} after. '
@@ -104,7 +105,7 @@ def publish(api, candidate, baseline, reference, decision, run_id, output):
     (output / 'README.md').write_text(update_card(old_card, decision, run_id), encoding='utf-8')
     history = output / 'training-history'
     history.mkdir()
-    record = dict(decision, run_id=run_id, baseline_revision=reference['revision'], dataset='20-batch agreement of two related Badini model versions')
+    record = dict(decision, run_id=run_id, baseline_revision=reference['revision'], dataset=decision.get('dataset_description', '20-batch agreement of two related Badini model versions'))
     (history / f'{run_id}.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
     existing = api.list_repo_files(repo_id=REPO, repo_type='model', revision=reference['revision'])
     if f'training-history/{run_id}.json' in existing:

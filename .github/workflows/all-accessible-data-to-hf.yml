@@ -1,0 +1,567 @@
+name: Train all accessible historical data on your Hugging Face AI
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/all-accessible-data-to-hf.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-word-training-result
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: sources/english
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-badini-backtranslations
+          run-id: 41044943082
+          github-token: ${{ github.token }}
+          path: sources/badini
+      - uses: actions/download-artifact@v4
+        with:
+          name: two-related-teacher-agreement
+          run-id: 41052181009
+          github-token: ${{ github.token }}
+          path: sources/agreement20
+      - uses: actions/download-artifact@v4
+        with:
+          name: two-related-teacher-agreement
+          run-id: 41051927869
+          github-token: ${{ github.token }}
+          path: sources/agreement8
+      - uses: actions/download-artifact@v4
+        with:
+          name: two-related-teacher-agreement
+          run-id: 41051656360
+          github-token: ${{ github.token }}
+          path: sources/agreement4
+      - uses: actions/download-artifact@v4
+        with:
+          name: continuous-badini-checkpoints
+          run-id: 40989117284
+          github-token: ${{ github.token }}
+          path: sources/continuous
+      - uses: actions/download-artifact@v4
+        with:
+          name: balanced-word-training
+          run-id: 41036334780
+          github-token: ${{ github.token }}
+          path: sources/balanced
+      - uses: actions/download-artifact@v4
+        with:
+          name: numbered-word-distillation
+          run-id: 40991850346
+          github-token: ${{ github.token }}
+          path: sources/pilot
+      - uses: actions/download-artifact@v4
+        with:
+          name: dasinya-badini-student
+          run-id: 41041856775
+          github-token: ${{ github.token }}
+          path: sources/corpus-pilot
+      - name: Merge accessible historical datasets with provenance
+        run: |
+          python tools/merge_all_training_data.py --english sources/english --badini sources/badini --agreement20 sources/agreement20 --agreement8 sources/agreement8 --agreement4 sources/agreement4 --continuous sources/continuous --balanced sources/balanced --pilot sources/pilot --corpus-pilot sources/corpus-pilot --output merged
+          python tools/prepare_word_training.py --synthetic merged/synthetic.csv --shard-count 50 --output shards
+      - name: Save data coverage and original IDs
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-accessible-training-data
+          path: merged/
+          retention-days: 90
+      - name: Save source-disjoint shards
+        uses: actions/upload-artifact@v4
+        with:
+          name: word-training-shards
+          path: shards/
+          retention-days: 90
+  baseline:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for earlier Hugging Face training round
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run watch 41064618983 --interval 60
+          test "$(gh api repos/${GITHUB_REPOSITORY}/actions/runs/41064618983 --jq .status)" = completed
+      - name: Install Hub client
+        run: python -m pip install 'huggingface_hub==0.36.2'
+      - name: Pin the latest model from Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: python tools/hf_training_round.py snapshot --output baseline/accepted-adapter --ref baseline/baseline-ref.json
+      - name: Save pinned starting checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-data-hf-baseline
+          path: baseline/
+          retention-days: 90
+  stage1:
+    needs: baseline
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 1
+      previous-name: all-data-hf-baseline
+      previous-run: ${{ github.run_id }}
+      retention: 90
+  stage2:
+    needs: stage1
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 2
+      previous-name: word-stage-1
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage3:
+    needs: stage2
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 3
+      previous-name: word-stage-2
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage4:
+    needs: stage3
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 4
+      previous-name: word-stage-3
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage5:
+    needs: stage4
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 5
+      previous-name: word-stage-4
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage6:
+    needs: stage5
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 6
+      previous-name: word-stage-5
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage7:
+    needs: stage6
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 7
+      previous-name: word-stage-6
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage8:
+    needs: stage7
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 8
+      previous-name: word-stage-7
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage9:
+    needs: stage8
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 9
+      previous-name: word-stage-8
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage10:
+    needs: stage9
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 10
+      previous-name: word-stage-9
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage11:
+    needs: stage10
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 11
+      previous-name: word-stage-10
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage12:
+    needs: stage11
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 12
+      previous-name: word-stage-11
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage13:
+    needs: stage12
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 13
+      previous-name: word-stage-12
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage14:
+    needs: stage13
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 14
+      previous-name: word-stage-13
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage15:
+    needs: stage14
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 15
+      previous-name: word-stage-14
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage16:
+    needs: stage15
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 16
+      previous-name: word-stage-15
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage17:
+    needs: stage16
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 17
+      previous-name: word-stage-16
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage18:
+    needs: stage17
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 18
+      previous-name: word-stage-17
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage19:
+    needs: stage18
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 19
+      previous-name: word-stage-18
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage20:
+    needs: stage19
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 20
+      previous-name: word-stage-19
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage21:
+    needs: stage20
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 21
+      previous-name: word-stage-20
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage22:
+    needs: stage21
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 22
+      previous-name: word-stage-21
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage23:
+    needs: stage22
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 23
+      previous-name: word-stage-22
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage24:
+    needs: stage23
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 24
+      previous-name: word-stage-23
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage25:
+    needs: stage24
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 25
+      previous-name: word-stage-24
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage26:
+    needs: stage25
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 26
+      previous-name: word-stage-25
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage27:
+    needs: stage26
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 27
+      previous-name: word-stage-26
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage28:
+    needs: stage27
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 28
+      previous-name: word-stage-27
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage29:
+    needs: stage28
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 29
+      previous-name: word-stage-28
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage30:
+    needs: stage29
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 30
+      previous-name: word-stage-29
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage31:
+    needs: stage30
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 31
+      previous-name: word-stage-30
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage32:
+    needs: stage31
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 32
+      previous-name: word-stage-31
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage33:
+    needs: stage32
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 33
+      previous-name: word-stage-32
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage34:
+    needs: stage33
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 34
+      previous-name: word-stage-33
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage35:
+    needs: stage34
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 35
+      previous-name: word-stage-34
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage36:
+    needs: stage35
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 36
+      previous-name: word-stage-35
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage37:
+    needs: stage36
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 37
+      previous-name: word-stage-36
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage38:
+    needs: stage37
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 38
+      previous-name: word-stage-37
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage39:
+    needs: stage38
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 39
+      previous-name: word-stage-38
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage40:
+    needs: stage39
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 40
+      previous-name: word-stage-39
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage41:
+    needs: stage40
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 41
+      previous-name: word-stage-40
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage42:
+    needs: stage41
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 42
+      previous-name: word-stage-41
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage43:
+    needs: stage42
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 43
+      previous-name: word-stage-42
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage44:
+    needs: stage43
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 44
+      previous-name: word-stage-43
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage45:
+    needs: stage44
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 45
+      previous-name: word-stage-44
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage46:
+    needs: stage45
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 46
+      previous-name: word-stage-45
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage47:
+    needs: stage46
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 47
+      previous-name: word-stage-46
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage48:
+    needs: stage47
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 48
+      previous-name: word-stage-47
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage49:
+    needs: stage48
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 49
+      previous-name: word-stage-48
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage50:
+    needs: stage49
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 50
+      previous-name: word-stage-49
+      previous-run: ${{ github.run_id }}
+      retention: 90
+  finalize:
+    needs: stage50
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU evaluation runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-data-hf-baseline
+          path: baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: word-stage-1
+          path: first
+      - uses: actions/download-artifact@v4
+        with:
+          name: word-stage-50
+          path: final
+      - name: Compare final checkpoint to original Hugging Face model
+        run: |
+          initial="$(find baseline -type d -name accepted-adapter -print -quit)"
+          selected="$(find final -type d -name accepted-adapter -print -quit)"
+          test -f "$initial/adapter_config.json" && test -f "$selected/adapter_config.json"
+          python tools/evaluate_word_quality.py --before "$initial" --after "$selected" --size 100 --output final-words.json
+      - name: Decide whether final checkpoint is safe to publish
+        id: decision
+        run: python tools/finalize_all_training.py --first first --final final --words final-words.json --stages 50 --output decision.json
+      - name: Save final decision
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-data-final-evaluation
+          path: |
+            final-words.json
+            decision.json
+          retention-days: 90
+      - name: Update Hugging Face only if guards pass and revision is unchanged
+        if: steps.decision.outputs.accepted == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          initial="$(find baseline -type d -name accepted-adapter -print -quit)"
+          selected="$(find final -type d -name accepted-adapter -print -quit)"
+          python tools/hf_training_round.py publish --baseline "$initial" --candidate "$selected" --ref baseline/baseline-ref.json --decision decision.json --run-id '${{ github.run_id }}' --output upload

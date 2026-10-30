@@ -27,7 +27,7 @@ def prepare(synthetic, output, shard_size, limit=0, shard_count=0):
     for row in rows:
         identifier = row['id']
         key = (row['source_lang'], row['source_text'].strip(), row['badini'].strip())
-        if identifier in ids or key in by_tuple or key[0] != 'en' or not key[1] or not valid_badini(key[2]):
+        if identifier in ids or key in by_tuple or key[0] not in ('en', 'ar', 'sorani') or not key[1] or not valid_badini(key[2]):
             raise ValueError(f'Invalid or duplicate synthetic row {identifier}')
         ids.add(identifier)
         by_tuple[key] = row

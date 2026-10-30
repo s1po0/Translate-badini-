@@ -145,3 +145,11 @@ The first load requires the original base model to be cached or downloaded.
 Once cached, it can run offline. The lightweight statistical model remains the
 default; selecting the adapter does not change it. `BADINI_ADAPTER_DIR` takes
 precedence over the other model settings.
+
+The completed experimental run is available at
+[GitHub Actions run 40986771788](https://github.com/s1po0/Translate-badini-/actions/runs/40986771788):
+download its `badini-adapter` artifact before 2026-11-29. The run loaded the
+saved adapter with the cached base model and generated outputs offline. Its
+24-example held-out loss report is recorded in `trained/adapter-report.json`;
+that small loss comparison is not evidence of real-world translation accuracy.
+The live preview continues to use the small statistical model, not this adapter.

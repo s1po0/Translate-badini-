@@ -1,0 +1,19 @@
+{
+  "run_url": "https://github.com/s1po0/Translate-badini-/actions/runs/40986771788",
+  "artifact_name": "badini-adapter",
+  "artifact_expires_at": "2026-11-29T01:40:44Z",
+  "base_model": "arkanit/badini-nllb-translator",
+  "optimizer_steps": 300,
+  "training_pool_pairs": 300,
+  "training_by_language": {"en": 100, "ar": 100, "sorani": 100},
+  "heldout_pairs": 24,
+  "teacher_forced_loss_before": {
+    "overall": 4.833963289856911,
+    "by_language": {"en": 5.695590674877167, "ar": 4.304873660206795, "sorani": 4.501425534486771}
+  },
+  "teacher_forced_loss_after": {
+    "overall": 4.138582895199458,
+    "by_language": {"en": 5.595227956771851, "ar": 4.081141337752342, "sorani": 2.7393793910741806}
+  },
+  "limitations": "Small unverified pilot; Sorani pairs are automatically matched and machine-translated. Loss is not translation accuracy. The base model may have seen evaluation data."
+}

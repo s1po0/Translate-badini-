@@ -1,0 +1,15 @@
+import {strict as assert} from 'node:assert';
+import {key,translate,upsert} from '../trainer/model.mjs';
+const model={languages:{en:{phrases:{hello:'قديم', 'hello world':'پێشوو'},lexicon:{world:'دونیا'}},ar:{phrases:{},lexicon:{}}}};
+let rows=[]; rows=upsert(rows,{language:'en',source:'HELLO',target:'سلاڤ'});
+assert.equal(translate(model,rows,'en','hello').text,'سلاڤ');
+assert.equal(translate(model,rows,'en','hello world').text,'پێشوو');
+rows=upsert(rows,{language:'en',source:'hello world',target:'سلاڤ دنیا'});
+assert.equal(translate(model,rows,'en','HELLO WORLD').text,'سلاڤ دنیا');
+rows=upsert(rows,{language:'en',source:'hello',target:'نوێ'});
+assert.equal(rows.length,2); assert.equal(translate(model,rows,'en','hello stranger').text,'نوێ stranger');
+assert.deepEqual(translate(model,rows,'en','hello stranger').unknown,['stranger']);
+assert.throws(()=>upsert(rows,{language:'badini',source:'x',target:'y'}));
+assert.throws(()=>upsert(rows,{language:'en',source:' ',target:'y'}));
+assert.equal(key('  HELLO  world!  '),'hello world !');
+console.log('trainer tests passed');

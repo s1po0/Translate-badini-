@@ -1,4 +1,4 @@
-name: Collect open Badini word examples with Scrapling
+name: Collect open Badini examples with Scrapling
 on:
   push:
     branches: [arena/abe27edd-translate-badini]
@@ -18,11 +18,11 @@ jobs:
       - name: Install Scrapling
         run: python -m pip install 'scrapling[fetchers]==0.4.15'
       - name: Test extraction
-        run: python -m unittest discover -s tests -p test_scrape_badini_article.py
-      - name: Collect the permitted article's word tables
+        run: python -m unittest discover -s tests -p test_scrape_badini_github.py
+      - name: Collect licensed examples
         run: |
           set +e
-          python tools/scrape_badini_article.py --output collected > scrape.log 2>&1
+          python tools/scrape_badini_github.py --output collected > scrape.log 2>&1
           code=$?
           cat scrape.log
           if [ "$code" -ne 0 ]; then
@@ -31,7 +31,7 @@ jobs:
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: scraped-badini-contextual-glosses
+          name: scraped-badini-examples
           path: collected/
           if-no-files-found: error
           retention-days: 90

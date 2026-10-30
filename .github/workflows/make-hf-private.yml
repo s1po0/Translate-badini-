@@ -1,0 +1,45 @@
+name: Make the Badini model private
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/make-hf-private.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  privacy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Hub client
+        run: python -m pip install 'huggingface_hub==0.36.2'
+      - name: Make the user's model private and verify
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python - <<'PY' > privacy.log 2>&1
+          import os
+          from huggingface_hub import HfApi
+          token = os.environ.get('HF_TOKEN')
+          if not token:
+              raise RuntimeError('HF_TOKEN is missing')
+          repo = 'sipan69/Badini-ai'
+          api = HfApi(token=token)
+          info = api.repo_info(repo_id=repo, repo_type='model')
+          if not info.private:
+              api.update_repo_visibility(repo_id=repo, private=True, repo_type='model')
+          if not api.repo_info(repo_id=repo, repo_type='model').private:
+              raise RuntimeError('Private visibility was not confirmed')
+          print('::notice title=Model visibility::Authenticated check confirms private visibility.')
+          PY
+          code=$?
+          cat privacy.log
+          if [ "$code" -ne 0 ]; then
+            python -c "from pathlib import Path; print('::error title=Privacy change failed::' + Path('privacy.log').read_text()[-2000:].replace('%','%25').replace('\n','%0A').replace('\r','%0D'))"
+            exit "$code"
+          fi

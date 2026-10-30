@@ -127,7 +127,7 @@ This script defaults to offline mode and needs the PyTorch/Transformers dependen
 
 `train_adapter.py` fine-tunes the Badini NLLB teacher with LoRA, then measures
 teacher-forced held-out loss. The GitHub Actions workflow downloads the model,
-runs a small CPU pilot (12 steps), and publishes an adapter and report as the
+runs a small CPU pilot (300 steps), and publishes an adapter and report as the
 `badini-adapter` artifact for 30 days. The Sorani examples are automatically
 matched and not reviewed; this pilot and its tiny held-out set are not proof
 of translation quality or improvement. Check model and data licensing before

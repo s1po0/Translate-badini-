@@ -28,9 +28,9 @@ def main():
     parser.add_argument("--data", default="training_data/ferman_approximate_sorani_badini.csv")
     parser.add_argument("--output", default="models/badini-adapter")
     parser.add_argument("--base", default=BASE_MODEL)
-    parser.add_argument("--steps", type=int, default=12)
+    parser.add_argument("--steps", type=int, default=300)
     parser.add_argument("--per-language", type=int, default=100)
-    parser.add_argument("--eval-per-language", type=int, default=2)
+    parser.add_argument("--eval-per-language", type=int, default=8)
     args = parser.parse_args()
     if min(args.steps, args.per_language, args.eval_per_language) <= 0:
         parser.error("steps and sample sizes must be positive")
@@ -77,11 +77,13 @@ def main():
 
     def measure_loss():
         model.eval()
-        losses = []
+        losses = {"en": [], "ar": [], "sorani": []}
         with torch.inference_mode():
-            for batch in DataLoader(heldout, batch_size=1, collate_fn=collator):
-                losses.append(float(model(**batch).loss))
-        return sum(losses) / len(losses)
+            for (language, _, _), batch in zip(test_rows, DataLoader(heldout, batch_size=1, collate_fn=collator)):
+                losses[language].append(float(model(**batch).loss))
+        all_losses = [value for values in losses.values() for value in values]
+        return {"overall": sum(all_losses) / len(all_losses),
+                "by_language": {lang: sum(values) / len(values) if values else None for lang, values in losses.items()}}
 
     before = measure_loss()
     out = Path(args.output)
@@ -89,7 +91,7 @@ def main():
     options = Seq2SeqTrainingArguments(
         output_dir=str(out / "checkpoints"), max_steps=args.steps,
         per_device_train_batch_size=1, gradient_accumulation_steps=1,
-        learning_rate=1e-4, logging_steps=1, save_strategy="no", report_to="none",
+        learning_rate=1e-4, logging_steps=10, save_strategy="no", report_to="none",
         dataloader_num_workers=0, use_cpu=True, seed=42,
     )
     trainer = Seq2SeqTrainer(model=model, args=options, train_dataset=Pairs(train_rows), data_collator=collator)
@@ -98,10 +100,10 @@ def main():
     model.save_pretrained(str(out / "adapter"), safe_serialization=True)
     tokenizer.save_pretrained(str(out / "adapter"))
     report = {
-        "base_model": args.base, "steps": args.steps, "training_pairs": len(train_rows),
+        "base_model": args.base, "optimizer_steps": args.steps, "training_pool_pairs": len(train_rows),
         "training_by_language": {lang: sum(row[0] == lang for row in train_rows) for lang in ("en", "ar", "sorani")},
-        "heldout_pairs": len(test_rows), "mean_teacher_forced_loss_before": before,
-        "mean_teacher_forced_loss_after": after,
+        "heldout_pairs": len(test_rows), "teacher_forced_loss_before": before,
+        "teacher_forced_loss_after": after,
         "limitations": "Small unverified pilot; Sorani pairs are automatically matched and machine-translated. Loss is not translation accuracy. The base model may have seen evaluation data.",
     }
     (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

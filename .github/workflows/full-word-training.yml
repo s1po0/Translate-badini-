@@ -1,0 +1,232 @@
+name: Train on all available numbered word pairs
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/full-word-training.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-word-training-result
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: source
+      - name: Prepare source-disjoint training shards
+        run: |
+          synthetic="$(find source -name synthetic.csv -type f -print -quit)"
+          test -n "$synthetic"
+          python tools/prepare_word_training.py --synthetic "$synthetic" --output shards --shard-size 5000
+          python -c "import json; m=json.load(open('shards/manifest.json')); assert m['training_rows']==123524 and len(m['shards'])==25"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: word-training-shards
+          path: shards/
+          retention-days: 7
+  stage1:
+    needs: prepare
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 1
+      previous-name: balanced-word-training
+      previous-run: '41036334780'
+      retention: 2
+  stage2:
+    needs: stage1
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 2
+      previous-name: word-stage-1
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage3:
+    needs: stage2
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 3
+      previous-name: word-stage-2
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage4:
+    needs: stage3
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 4
+      previous-name: word-stage-3
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage5:
+    needs: stage4
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 5
+      previous-name: word-stage-4
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage6:
+    needs: stage5
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 6
+      previous-name: word-stage-5
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage7:
+    needs: stage6
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 7
+      previous-name: word-stage-6
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage8:
+    needs: stage7
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 8
+      previous-name: word-stage-7
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage9:
+    needs: stage8
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 9
+      previous-name: word-stage-8
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage10:
+    needs: stage9
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 10
+      previous-name: word-stage-9
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage11:
+    needs: stage10
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 11
+      previous-name: word-stage-10
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage12:
+    needs: stage11
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 12
+      previous-name: word-stage-11
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage13:
+    needs: stage12
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 13
+      previous-name: word-stage-12
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage14:
+    needs: stage13
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 14
+      previous-name: word-stage-13
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage15:
+    needs: stage14
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 15
+      previous-name: word-stage-14
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage16:
+    needs: stage15
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 16
+      previous-name: word-stage-15
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage17:
+    needs: stage16
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 17
+      previous-name: word-stage-16
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage18:
+    needs: stage17
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 18
+      previous-name: word-stage-17
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage19:
+    needs: stage18
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 19
+      previous-name: word-stage-18
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage20:
+    needs: stage19
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 20
+      previous-name: word-stage-19
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage21:
+    needs: stage20
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 21
+      previous-name: word-stage-20
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage22:
+    needs: stage21
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 22
+      previous-name: word-stage-21
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage23:
+    needs: stage22
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 23
+      previous-name: word-stage-22
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage24:
+    needs: stage23
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 24
+      previous-name: word-stage-23
+      previous-run: ${{ github.run_id }}
+      retention: 2
+  stage25:
+    needs: stage24
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 25
+      previous-name: word-stage-24
+      previous-run: ${{ github.run_id }}
+      retention: 90

@@ -228,3 +228,36 @@ candidate passed both guards: mean loss on 60 examples was 3.3331 → 3.1830,
 and normalized exact matches on 100 held-out dictionary words were 6 → 7.
 These are small, imperfect tests and do not establish general accuracy. Details
 are in `trained/balanced-word-report.json`.
+
+## Checkpointed full word-pair training
+
+`.github/workflows/full-word-training.yml` splits the 129,973 script-passing,
+**unverified** teacher outputs into source-disjoint train and held-out groups,
+then sequentially trains all 123,524 eligible training pairs in 25 shards.
+It starts with the accepted checkpoint from run 41036334780. Each shard is
+trained for one full pass of the shard and replay pool, then the held-out loss
+and word exact-match guards decide whether to keep its candidate or restore the
+prior adapter. The next shard starts from the selected adapter. `progress.json`
+separately counts pairs seen in attempted and accepted stages: a rejected stage
+is not retained, so processing every pair does **not** imply the final model
+learned every word. Repeatedly using the same small tests for decisions can
+also overfit the tests.
+
+The 240,132 outputs that did not even pass the Arabic-script check are not
+translations and cannot be used as valid Badini labels. The 6,449 held-out
+script-passing pairs are kept out of training. Neither passing a script check
+nor passing the guards establishes correctness, meaning, or Badini dialect;
+human review is still needed. The model search found only one suitable
+Badini text-translation teacher (`arkanit/badini-nllb-translator`); Badini
+speech recognition and speech synthesis models are different tasks and are
+not claimed as translation teachers. Other compatible local translation
+teachers can be configured in `continuous_training.py`; the multilingual NLLB
+pivot is not a Badini-specialized model.
+
+Each GitHub job has a six-hour limit; the full workflow runs jobs sequentially
+and may take much longer than six hours overall. It can fail, be queued or hit
+GitHub limits. Intermediate stage artifacts expire after two days, the shards
+after seven days, and the final stage after 90 days; they are not permanent
+backups. GitHub Actions is not unlimited hosting or compute. The public demo
+does not automatically switch to the final adapter. Re-run failures promptly
+while the needed artifacts exist; there is no guaranteed automatic recovery.

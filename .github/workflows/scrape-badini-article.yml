@@ -20,7 +20,15 @@ jobs:
       - name: Test extraction
         run: python -m unittest discover -s tests -p test_scrape_badini_article.py
       - name: Collect the permitted article's word tables
-        run: python tools/scrape_badini_article.py --output collected
+        run: |
+          set +e
+          python tools/scrape_badini_article.py --output collected > scrape.log 2>&1
+          code=$?
+          cat scrape.log
+          if [ "$code" -ne 0 ]; then
+            python -c "from pathlib import Path; print('::error title=Collection failed::' + Path('scrape.log').read_text()[-3000:].replace('%','%25').replace('\n','%0A').replace('\r','%0D'))"
+            exit "$code"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: scraped-badini-contextual-glosses

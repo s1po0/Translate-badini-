@@ -1,0 +1,31 @@
+name: Audit generated word translations
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/word-quality-scan.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-word-training-result
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: output
+      - name: Audit the generated translations
+        run: |
+          file="$(find output -name attempts.csv -type f -print -quit)"
+          test -n "$file"
+          python tools/scan_word_translations.py "$file" --output audit/word-scan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: word-quality-scan
+          path: audit/
+          retention-days: 90

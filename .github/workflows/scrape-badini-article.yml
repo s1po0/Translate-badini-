@@ -1,5 +1,8 @@
 name: Collect open Badini word examples with Scrapling
 on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/scrape-badini-article.yml']
   workflow_dispatch:
 permissions:
   contents: read

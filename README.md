@@ -153,3 +153,46 @@ saved adapter with the cached base model and generated outputs offline. Its
 24-example held-out loss report is recorded in `trained/adapter-report.json`;
 that small loss comparison is not evidence of real-world translation accuracy.
 The live preview continues to use the small statistical model, not this adapter.
+
+## Continuous teacher–student training (experimental)
+
+`continuous_training.py` runs repeated rounds without an iteration limit by
+default. In each round the multilingual NLLB model translates Arabic/Sorani
+sources into English, a Badini NLLB teacher proposes Badini outputs, and the
+student LoRA adapter trains on those **unverified synthetic pairs** plus
+replayed seed data. It rotates between compatible teacher models specified with
+`--teachers`; only one Badini teacher is configured by default. It does not
+make models converse, and the source pool eventually repeats.
+
+Each round evaluates the candidate on the same source-disjoint held-out sample
+and only replaces the current adapter if overall loss does not increase and
+no language loss regresses by more than 3%. This is an imperfect safety check,
+not a guarantee of better translations; the Sorani data is automatically
+matched and unverified. `state.json` is replaced atomically after each round,
+so a failed or interrupted round leaves the previous accepted checkpoint intact.
+A lock prevents concurrent processes from writing to the same run. Training
+continues until stopped with Ctrl+C, but requires enough compute and disk;
+it stops before free disk drops below 2 GiB. Teacher and student model licenses
+and synthetic data should be reviewed before commercial use.
+
+Install the dependencies in `requirements.txt`, download/cache the Badini and
+multilingual NLLB models, and provide the previously trained LoRA adapter:
+
+```sh
+python continuous_training.py --initial-adapter models/badini-adapter/adapter
+```
+
+Add `--allow-download` on the first run if models are not cached. For a finite
+smoke test use `--max-cycles 2`; `0` (the default) repeats. `--output` chooses
+the run directory. After restarting, the program reads its saved state and
+continues from its last accepted adapter. A training failure in unlimited mode
+is retried after a delay; the current adapter is not replaced. Each round's
+sources, synthetic pairs, report and candidate adapter are stored under
+`models/continuous/rounds`. These checkpoints consume disk and are excluded
+from Git. The `adapter` value in `models/continuous/state.json` is relative to
+that directory and can be supplied to `BADINI_ADAPTER_DIR` to serve it. The
+currently running public demo does not automatically switch checkpoints.
+
+`.github/workflows/continuous-badini-test.yml` performs two real rounds on a
+GitHub runner and uploads the resulting checkpoints for 30 days. It is a
+finite test: GitHub jobs cannot run forever and runners have usage limits.

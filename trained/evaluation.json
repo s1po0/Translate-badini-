@@ -1,0 +1,17 @@
+{
+  "ar": {
+    "heldout_examples": 573,
+    "exact_token_match": 2,
+    "exact_match_rate": 0.0035
+  },
+  "en": {
+    "heldout_examples": 1021,
+    "exact_token_match": 12,
+    "exact_match_rate": 0.0118
+  },
+  "sorani": {
+    "heldout_examples": 20,
+    "exact_token_match": 1,
+    "exact_match_rate": 0.05
+  }
+}

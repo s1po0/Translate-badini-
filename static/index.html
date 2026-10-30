@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ckb" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>وەرگێڕا بادینی</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f5f7fa; color: #172133; }
+    main { max-width: 900px; margin: 8vh auto; padding: 0 20px; }
+    h1 { margin-bottom: 6px; }
+    p { color: #586779; line-height: 1.7; }
+    .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 28px 0 14px; }
+    select, button, textarea { font: inherit; }
+    select, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #cad3df; background: white; }
+    button { cursor: pointer; }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    textarea, .output { width: 100%; min-height: 220px; padding: 18px; border: 1px solid #cad3df; border-radius: 10px; background: white; font-size: 18px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+    textarea { resize: vertical; }
+    .output { background: #eef3f9; }
+    .submit { margin-top: 16px; background: #255ed6; border-color: #255ed6; color: white; padding: 11px 28px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #status { min-height: 2em; color: #8c3333; }
+    @media (max-width: 600px) { .panels { grid-template-columns: 1fr; } textarea, .output { min-height: 160px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>وەرگێڕا بادینی</h1>
+  <p>مۆدێلی ئۆفلاین و تاقیکاری: ئینگلیزی، عەرەبی و سۆرانی → بادینی · کوالێتی لاوازە، ئەنجامەکان بپشکنە</p>
+  <form id="form">
+    <div class="toolbar">
+      <label for="source">ژ:</label>
+      <select id="source"><option value="en">English</option><option value="sorani">کوردی سۆرانی</option><option value="ar">العربية</option><option value="badini">بادینی</option></select>
+      <button type="button" id="swap" aria-label="گوهۆڕینا زمانان">⇄</button>
+      <label for="target">بۆ:</label>
+      <select id="target"><option value="badini">بادینی</option><option value="en">English</option></select>
+    </div>
+    <div class="panels">
+      <textarea id="text" maxlength="4000" required placeholder="دەقێ خو ل ڤێرێ بنڤیسە..." aria-label="دەق" dir="auto"></textarea>
+      <div class="output" id="output" role="status" aria-label="وەرگێڕان" dir="auto"></div>
+    </div>
+    <button class="submit" id="submit" type="submit">وەرگێڕە</button>
+    <p id="status" role="alert"></p>
+  </form>
+</main>
+<script>
+  const form = document.querySelector('#form'), source = document.querySelector('#source'), target = document.querySelector('#target');
+  const text = document.querySelector('#text'), output = document.querySelector('#output'), status = document.querySelector('#status'), submit = document.querySelector('#submit');
+  function syncLanguages(changed) {
+    if (changed === source) target.value = source.value === 'badini' ? 'en' : 'badini';
+    else if (target.value === 'en') source.value = 'badini';
+    else if (source.value === 'badini') source.value = 'en';
+    document.querySelector('#swap').disabled = !((source.value === 'en' && target.value === 'badini') || (source.value === 'badini' && target.value === 'en'));
+    output.textContent = ''; status.textContent = '';
+  }
+  source.addEventListener('change', () => syncLanguages(source));
+  target.addEventListener('change', () => syncLanguages(target));
+  document.querySelector('#swap').addEventListener('click', () => {
+    [source.value, target.value] = [target.value, source.value];
+    if (output.textContent) { text.value = output.textContent; output.textContent = ''; }
+    status.textContent = '';
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!text.value.trim()) return;
+    submit.disabled = true; output.textContent = ''; status.textContent = 'چاوەڕێ بکە... بارکرنا مودێلێ بۆ جارێ ئێکێ دەمێ دگریت.';
+    try {
+      const response = await fetch('/translate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: text.value, source: source.value, target: target.value}) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Translation failed.');
+      output.textContent = data.translation; status.textContent = '';
+    } catch (error) { status.textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
+</script>
+</body>
+</html>

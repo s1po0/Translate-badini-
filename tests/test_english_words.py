@@ -33,3 +33,20 @@ class EnglishWordsTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class MergeWordsTests(unittest.TestCase):
+    def test_merge_detects_incomplete_or_mismatched_ids(self):
+        from tools.merge_translated_words import merge
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            index = root / 'index.tsv'
+            index.write_text('000001\thello\n000002\tworld\n')
+            batch = root / 'batches/part'
+            batch.mkdir(parents=True)
+            (batch / 'attempts.csv').write_text('id,english,badini,script_valid\n000001,hello,سلاڤ,1\n')
+            with self.assertRaises(ValueError):
+                merge(root / 'batches', root / 'out', index)
+            (batch / 'attempts.csv').write_text('id,english,badini,script_valid\n000001,hello,سلاڤ,1\n000002,world,جیهان,1\n')
+            merge(root / 'batches', root / 'out', index)
+            with (root / 'out/synthetic.csv').open() as f:
+                self.assertEqual(len(list(csv.DictReader(f))), 2)

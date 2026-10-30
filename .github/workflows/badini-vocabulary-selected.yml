@@ -1,0 +1,227 @@
+name: Train all available Badini vocabulary on latest selected model
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/badini-vocabulary-selected.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  copy-shards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download all teacher-generated training shards
+        uses: actions/download-artifact@v4
+        with:
+          name: word-training-shards
+          run-id: 41044943082
+          github-token: ${{ github.token }}
+          path: shards
+      - name: Check dataset before starting
+        run: |
+          python - <<'CHECK'
+          import json
+          from pathlib import Path
+          p = Path('shards')
+          m = json.loads((p / 'manifest.json').read_text())
+          assert m['training_rows'] == 93373 and m['heldout_rows'] == 4732
+          assert len(m['shards']) == 20 and sum(s['count'] for s in m['shards']) == m['training_rows']
+          assert all((p / x['file']).is_file() for x in m['shards'])
+          print('::notice title=Badini training data::93373 unverified training pairs; 4732 held out; 20 sequential shards')
+          CHECK
+      - name: Save shards for this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: word-training-shards
+          path: shards/
+          retention-days: 90
+  stage1:
+    needs: copy-shards
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 1
+      previous-name: parallel-badini-selected
+      previous-run: '41047507896'
+      retention: 7
+  stage2:
+    needs: stage1
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 2
+      previous-name: word-stage-1
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage3:
+    needs: stage2
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 3
+      previous-name: word-stage-2
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage4:
+    needs: stage3
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 4
+      previous-name: word-stage-3
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage5:
+    needs: stage4
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 5
+      previous-name: word-stage-4
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage6:
+    needs: stage5
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 6
+      previous-name: word-stage-5
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage7:
+    needs: stage6
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 7
+      previous-name: word-stage-6
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage8:
+    needs: stage7
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 8
+      previous-name: word-stage-7
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage9:
+    needs: stage8
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 9
+      previous-name: word-stage-8
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage10:
+    needs: stage9
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 10
+      previous-name: word-stage-9
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage11:
+    needs: stage10
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 11
+      previous-name: word-stage-10
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage12:
+    needs: stage11
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 12
+      previous-name: word-stage-11
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage13:
+    needs: stage12
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 13
+      previous-name: word-stage-12
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage14:
+    needs: stage13
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 14
+      previous-name: word-stage-13
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage15:
+    needs: stage14
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 15
+      previous-name: word-stage-14
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage16:
+    needs: stage15
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 16
+      previous-name: word-stage-15
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage17:
+    needs: stage16
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 17
+      previous-name: word-stage-16
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage18:
+    needs: stage17
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 18
+      previous-name: word-stage-17
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage19:
+    needs: stage18
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 19
+      previous-name: word-stage-18
+      previous-run: ${{ github.run_id }}
+      retention: 7
+  stage20:
+    needs: stage19
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 20
+      previous-name: word-stage-19
+      previous-run: ${{ github.run_id }}
+      retention: 90
+  finalize:
+    needs: stage20
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: word-stage-20
+          path: completed
+      - name: Verify final progress
+        run: |
+          python - <<'CHECK'
+          import json
+          from pathlib import Path
+          p = Path('completed')
+          paths = list(p.rglob('progress.json'))
+          adapters = list(p.rglob('accepted-adapter/adapter_config.json'))
+          assert len(paths) == 1 and len(adapters) == 1
+          report = json.loads(paths[0].read_text())
+          assert len(report['stages']) == 20 and report['planned_examples'] == 93373
+          print('::notice title=Completed vocabulary training::' + json.dumps(report))
+          CHECK
+      - name: Save final selected adapter and progress
+        uses: actions/upload-artifact@v4
+        with:
+          name: selected-latest-vocabulary-adapter
+          path: completed/
+          retention-days: 90

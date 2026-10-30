@@ -1,0 +1,3 @@
+# English word index for Kagi translations
+
+`english-word-index.tsv` contains 370,105 numbered entries from dwyl/english-words `words_alpha.txt`, commit 20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c: https://github.com/dwyl/english-words. The upstream list is provided under the Unlicense; see LICENSE.txt. It includes inflected, uncommon, archaic and possibly invalid entries and does not contain every English word, phrase, name, or spelling. IDs (000001–370105) are stable: do not renumber this index. Translations returned by Kagi are machine-generated and require validation. Preserve the original output unchanged for ID-based matching; do not infer missing or ambiguous mappings.

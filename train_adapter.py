@@ -30,6 +30,37 @@ def limit_synthetic(rows, limit, seed):
     return random.Random(seed).sample(rows, limit)
 
 
+def read_reviewed_examples(path):
+    """Read a trainer backup without publishing the user's text or dropping pairs."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("format") != "badini-trainer-v1" or not isinstance(data.get("pairs"), list):
+        raise ValueError("Expected a Badini trainer JSON backup.")
+    if not 1 <= len(data["pairs"]) <= 10000:
+        raise ValueError("A backup must contain 1 to 10000 examples.")
+    rows, seen = [], set()
+    for item in data["pairs"]:
+        if not isinstance(item, dict):
+            raise ValueError("Invalid reviewed example.")
+        language, source, target = item.get("language"), item.get("source"), item.get("target")
+        if language not in ("en", "ar", "sorani") or not isinstance(source, str) or not isinstance(target, str):
+            raise ValueError("Invalid reviewed example.")
+        source, target = source.strip(), target.strip()
+        if not source or not target or len(source) > 1000 or len(target) > 1000:
+            raise ValueError("Invalid reviewed example length.")
+        identity = (language, source.casefold())
+        if identity in seen:
+            raise ValueError("Duplicate source in reviewed examples.")
+        seen.add(identity)
+        rows.append((language, source, target))
+    return rows
+
+
+def remove_reviewed_sources(rows, reviewed):
+    """Avoid conflicting replay labels and evaluation on the user's training sources."""
+    sources = {(lang, source.casefold()) for lang, source, _ in reviewed}
+    return [row for row in rows if (row[0], row[1].casefold()) not in sources]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", default="training_data/ferman_approximate_sorani_badini.csv")
@@ -37,6 +68,8 @@ def main():
     parser.add_argument("--base", default=BASE_MODEL)
     parser.add_argument("--initial-adapter", help="Previously trained LoRA adapter directory")
     parser.add_argument("--synthetic-data", help="Teacher-generated source_lang,source_text,badini CSV")
+    parser.add_argument("--reviewed-data", help="Private JSON backup exported by the Badini training studio")
+    parser.add_argument("--reviewed-repeats", type=int, default=5, help="Number of times each reviewed example is included")
     parser.add_argument("--synthetic-repeats", type=int, default=5)
     parser.add_argument("--synthetic-limit", type=int, default=0, help="Maximum synthetic training rows after splitting; 0 uses all")
     parser.add_argument("--learning-rate", type=float, default=1e-4)
@@ -45,8 +78,10 @@ def main():
     parser.add_argument("--per-language", type=int, default=100)
     parser.add_argument("--eval-per-language", type=int, default=8)
     args = parser.parse_args()
-    if min(args.steps, args.per_language, args.eval_per_language, args.synthetic_repeats) <= 0 or args.synthetic_limit < 0 or not 0 < args.learning_rate < float('inf'):
+    if min(args.steps, args.per_language, args.eval_per_language, args.synthetic_repeats, args.reviewed_repeats) <= 0 or args.synthetic_limit < 0 or not 0 < args.learning_rate < float('inf'):
         parser.error("steps, sample sizes and learning rate must be positive; synthetic-limit must be nonnegative")
+    if args.reviewed_data and args.synthetic_data:
+        parser.error("Use reviewed examples or synthetic examples in one run, not both.")
 
     import torch
     from peft import LoraConfig, PeftConfig, PeftModel, TaskType, get_peft_model
@@ -57,8 +92,19 @@ def main():
     set_seed(args.seed)
     torch.set_num_threads(2)
     train_rows, test_rows = split_pairs(read_pairs(args.data))
+    reviewed_rows = read_reviewed_examples(args.reviewed_data) if args.reviewed_data else []
+    if reviewed_rows:
+        train_rows = remove_reviewed_sources(train_rows, reviewed_rows)
+        test_rows = remove_reviewed_sources(test_rows, reviewed_rows)
     train_rows = select_examples(train_rows, args.per_language, args.seed)
     test_rows = select_examples(test_rows, args.eval_per_language, 43)
+    if reviewed_rows and any(not any(row[0] == language for row in test_rows) for language in ('en', 'ar', 'sorani')):
+        raise ValueError('Insufficient source-disjoint held-out examples for all languages.')
+    if reviewed_rows:
+        train_rows += reviewed_rows * args.reviewed_repeats
+        random.Random(args.seed).shuffle(train_rows)
+        if args.steps < len(train_rows):
+            raise ValueError('Reviewed training needs at least one step per training row to cover each example.')
     synthetic_count = 0
     if args.synthetic_data:
         import csv
@@ -86,6 +132,11 @@ def main():
 
     print(f"Downloading/loading {args.base}; {len(train_rows)} train, {len(test_rows)} held-out examples", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(args.base)
+    for language, source, target in reviewed_rows:
+        tokenizer.src_lang = LANGUAGES[language]
+        tokenizer.tgt_lang = LANGUAGES['badini']
+        if len(tokenizer(source, truncation=False)['input_ids']) > 64 or len(tokenizer(text_target=target, truncation=False)['input_ids']) > 64:
+            raise ValueError('A reviewed example exceeds 64 tokens; shorten it before training.')
     model = AutoModelForSeq2SeqLM.from_pretrained(args.base, low_cpu_mem_usage=True)
     model.config.use_cache = False
     if args.initial_adapter:
@@ -143,6 +194,7 @@ def main():
     report = {
         "base_model": args.base, "optimizer_steps": args.steps, "learning_rate": args.learning_rate, "training_pool_pairs": len(train_rows),
         "initial_adapter": args.initial_adapter, "synthetic_unique_rows": synthetic_count, "synthetic_repeats": args.synthetic_repeats if args.synthetic_data else 0,
+        "reviewed_unique_rows": len(reviewed_rows), "reviewed_repeats": args.reviewed_repeats if reviewed_rows else 0,
         "training_by_language": {lang: sum(row[0] == lang for row in train_rows) for lang in ("en", "ar", "sorani")},
         "heldout_pairs": len(test_rows), "teacher_forced_loss_before": before,
         "teacher_forced_loss_after": after,

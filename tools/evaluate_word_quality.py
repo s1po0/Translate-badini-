@@ -52,10 +52,14 @@ def main():
     parser.add_argument('--after', required=True)
     parser.add_argument('--size', type=int, default=100)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--exclude-reviewed', help='Trainer backup containing private sources to exclude')
     args = parser.parse_args()
     if args.size < 1:
         parser.error('size must be positive')
     _, heldout = split_pairs(read_pairs())
+    if args.exclude_reviewed:
+        from train_adapter import read_reviewed_examples, remove_reviewed_sources
+        heldout = remove_reviewed_sources(heldout, read_reviewed_examples(args.exclude_reviewed))
     rows = heldout_words(heldout, args.size)
     if not rows:
         raise ValueError('No held-out English single-word references')

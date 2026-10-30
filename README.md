@@ -122,3 +122,26 @@ python train_statistical.py --data data/badini-approved.csv
 ```
 
 This script defaults to offline mode and needs the PyTorch/Transformers dependencies and locally cached weights; `--allow-download` explicitly allows downloading them. Model weights are not included in this repository. A failed generation can leave a partial unapproved review CSV; use a new output path to retry. These teacher-generated examples have not been produced or evaluated in this environment. The local statistical model was actually retrained with the two published model-card examples; the full neural teacher model could not be downloaded here. Check both model and data rights before commercial use or redistribution.
+
+## Experimental Badini LoRA adapter
+
+`train_adapter.py` fine-tunes the Badini NLLB teacher with LoRA, then measures
+teacher-forced held-out loss. The GitHub Actions workflow downloads the model,
+runs a small CPU pilot (12 steps), and publishes an adapter and report as the
+`badini-adapter` artifact for 30 days. The Sorani examples are automatically
+matched and not reviewed; this pilot and its tiny held-out set are not proof
+of translation quality or improvement. Check model and data licensing before
+commercial use. The adapter is not a standalone model: its base weights and
+Python dependencies are required.
+
+To serve a downloaded and extracted artifact after installing requirements,
+point the app at its `adapter` directory:
+
+```sh
+BADINI_ADAPTER_DIR=/path/to/badini-adapter/adapter python app.py
+```
+
+The first load requires the original base model to be cached or downloaded.
+Once cached, it can run offline. The lightweight statistical model remains the
+default; selecting the adapter does not change it. `BADINI_ADAPTER_DIR` takes
+precedence over the other model settings.

@@ -60,7 +60,32 @@ class Translator:
             return self._run(BADINI_MODEL, text, source, target)
 
 
-if os.environ.get("TRANSLATOR_MODE") == "neural" or os.environ.get("BADINI_MODEL_DIR"):
+class AdapterTranslator(Translator):
+    """Serve a trained local LoRA adapter on its recorded base model."""
+    def __init__(self, adapter_path):
+        self.lock = threading.Lock()
+        self.models = {}
+        self.adapter_path = str(Path(adapter_path).resolve())
+
+    def translate(self, text, source, target):
+        if target != "badini" or source not in ("en", "ar", "sorani"):
+            raise ValueError("ئەم مۆدێلە تەنها بۆ بادینی وەردەگێڕێت.")
+        with self.lock:
+            if self.adapter_path not in self.models:
+                from peft import PeftConfig, PeftModel
+                from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+                config = PeftConfig.from_pretrained(self.adapter_path)
+                tokenizer = AutoTokenizer.from_pretrained(self.adapter_path)
+                base = AutoModelForSeq2SeqLM.from_pretrained(config.base_model_name_or_path)
+                model = PeftModel.from_pretrained(base, self.adapter_path)
+                model.eval()
+                self.models[self.adapter_path] = (tokenizer, model)
+            return self._run(self.adapter_path, text, source, target)
+
+
+if os.environ.get("BADINI_ADAPTER_DIR"):
+    translator = AdapterTranslator(os.environ["BADINI_ADAPTER_DIR"])
+elif os.environ.get("TRANSLATOR_MODE") == "neural" or os.environ.get("BADINI_MODEL_DIR"):
     translator = Translator()
 else:
     from statistical import StatisticalTranslator

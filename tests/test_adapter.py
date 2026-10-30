@@ -16,3 +16,16 @@ class AdapterDataTest(unittest.TestCase):
         rows = [('en', 'Same', 'one'), ('en', 'same', 'two'), ('ar', 'نص', 'بادینی')]
         train, test = split_pairs(rows)
         self.assertFalse({(a, b.casefold()) for a, b, _ in train} & {(a, b.casefold()) for a, b, _ in test})
+
+
+class AdapterServingTest(unittest.TestCase):
+    def test_supported_directions_route_to_trained_adapter(self):
+        from unittest.mock import MagicMock, patch
+        import app
+        server = app.AdapterTranslator('/tmp/test-adapter')
+        server.models[server.adapter_path] = (MagicMock(), MagicMock())
+        with patch.object(server, '_run', return_value='بادینی') as run:
+            self.assertEqual(server.translate('hello', 'en', 'badini'), 'بادینی')
+            run.assert_called_once_with(server.adapter_path, 'hello', 'en', 'badini')
+        with self.assertRaises(ValueError):
+            server.translate('بادینی', 'badini', 'en')

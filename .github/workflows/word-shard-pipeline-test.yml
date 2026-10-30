@@ -1,0 +1,49 @@
+name: Test chained word training
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/word-shard-pipeline-test.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-word-training-result
+          run-id: 40992691510
+          github-token: ${{ github.token }}
+          path: source
+      - name: Make two small test shards
+        run: |
+          synthetic="$(find source -name synthetic.csv -type f -print -quit)"
+          test -n "$synthetic"
+          python tools/prepare_word_training.py --synthetic "$synthetic" --output shards --shard-size 8 --limit 16
+      - uses: actions/upload-artifact@v4
+        with:
+          name: word-training-shards
+          path: shards/
+          retention-days: 2
+  stage1:
+    needs: prepare
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 1
+      previous-name: balanced-word-training
+      previous-run: '41036334780'
+      replay: 2
+      retention: 2
+  stage2:
+    needs: stage1
+    uses: ./.github/workflows/word-shard-stage.yml
+    with:
+      stage: 2
+      previous-name: word-stage-1
+      previous-run: ${{ github.run_id }}
+      replay: 2
+      retention: 2

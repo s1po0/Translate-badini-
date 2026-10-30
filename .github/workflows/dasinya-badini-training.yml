@@ -1,0 +1,74 @@
+name: Add Badini corpus vocabulary to student
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/dasinya-badini-training.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - name: Download and verify public Badini corpus
+        run: |
+          curl -fL --retry 3 --connect-timeout 30 'https://zenodo.org/records/20729060/files/dasinya_bdpt_zenodo.zip?download=1' -o /tmp/dasinya.zip
+          echo '9b5eb5b314d542837f3678284b47d725  /tmp/dasinya.zip' | md5sum --check
+      - name: Extract observed vocabulary from all segmented documents
+        run: python tools/dasinya_vocabulary.py --archive /tmp/dasinya.zip --output output/vocabulary
+      - name: Generate English supervision for a sample of Badini words
+        run: python tools/backtranslate_badini_vocab.py --vocabulary output/vocabulary/badini-vocabulary.tsv.gz --count 1024 --batch-size 8 --output output/backtranslated
+      - name: Download previous accepted student
+        uses: actions/download-artifact@v4
+        with:
+          name: balanced-word-training
+          run-id: 41036334780
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Locate previous accepted adapter
+        run: |
+          adapter="$(find previous -type d -name accepted-adapter -print -quit)"
+          test -f "$adapter/adapter_config.json"
+          printf '%s' "$adapter" > /tmp/previous-adapter
+      - name: Train candidate with corpus words and replay
+        run: |
+          python train_adapter.py --initial-adapter "$(cat /tmp/previous-adapter)" --synthetic-data output/backtranslated/synthetic.csv --synthetic-repeats 1 --synthetic-limit 350 --steps 1200 --per-language 200 --eval-per-language 20 --learning-rate 0.00002 --output output/candidate
+      - name: Compare held-out dictionary translations
+        run: python tools/evaluate_word_quality.py --before "$(cat /tmp/previous-adapter)" --after output/candidate/adapter --size 100 --output output/word-evaluation.json
+      - name: Select checkpoint if it passes both guards
+        run: |
+          python - <<'PY'
+          import json, pathlib, shutil
+          from continuous_training import accepted
+          root = pathlib.Path('output')
+          report = json.loads((root/'candidate/report.json').read_text())
+          word = json.loads((root/'word-evaluation.json').read_text())
+          loss_ok = accepted(report, .03)
+          words_ok = word['after_exact'] >= word['before_exact'] - max(1, int(word['examples'] * .02))
+          keep = loss_ok and words_ok
+          previous = pathlib.Path('/tmp/previous-adapter').read_text()
+          shutil.copytree(root/'candidate/adapter' if keep else previous, root/'accepted-adapter')
+          result = {'candidate_accepted': keep, 'loss_guard_pass': loss_ok, 'word_guard_pass': words_ok,
+                    'limitation': 'Backtranslations are unverified; test scores do not guarantee Badini accuracy.'}
+          (root/'decision.json').write_text(json.dumps(result, indent=2))
+          print('::notice title=Badini corpus decision::' + json.dumps(result), flush=True)
+          print('::notice title=Badini corpus training report::' + json.dumps(report), flush=True)
+          PY
+      - name: Upload vocabulary, data and model checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dasinya-badini-student
+          path: output/
+          if-no-files-found: warn
+          retention-days: 90

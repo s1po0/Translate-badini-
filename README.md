@@ -261,3 +261,20 @@ after seven days, and the final stage after 90 days; they are not permanent
 backups. GitHub Actions is not unlimited hosting or compute. The public demo
 does not automatically switch to the final adapter. Re-run failures promptly
 while the needed artifacts exist; there is no guaranteed automatic recovery.
+
+## Dasinya Badini corpus vocabulary experiment
+
+[Dasinya](https://doi.org/10.5281/zenodo.20729060), Vaman A. Saeed and Karwan
+Jacksi (2026), is published under CC BY 4.0. `.github/workflows/dasinya-badini-training.yml`
+downloads and checksum-verifies the publisher's archive and extracts Arabic-script
+word forms and frequencies from its 107 segmented documents. The vocabulary is
+an observed corpus list, not all possible Badini words; it can contain variant
+spellings, names, OCR errors and non-Badini text. The corpus has Badini text,
+not English translations. The experiment backtranslates only a sample of 1,024
+frequent forms through the available Badini NLLB model and trains on at most
+350 unverified generated pairs with replay. Automatic English-script checks do
+not prove translation correctness. Source-disjoint held-out loss and dictionary
+word checks choose the checkpoint, but are small and imperfect; the base model
+may have seen evaluation data. Candidate/selected adapters, vocabulary and
+backtranslations are uploaded as a temporary 90-day GitHub artifact. No live
+server automatically uses this separate candidate.

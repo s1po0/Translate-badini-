@@ -1,0 +1,56 @@
+{
+  "training": {
+    "base_model": "arkanit/badini-nllb-translator",
+    "optimizer_steps": 1200,
+    "learning_rate": 2e-05,
+    "training_pool_pairs": 844,
+    "initial_adapter": "prior-adapter/accepted-adapter",
+    "synthetic_unique_rows": 244,
+    "synthetic_repeats": 1,
+    "training_by_language": {
+      "en": 444,
+      "ar": 200,
+      "sorani": 200
+    },
+    "heldout_pairs": 60,
+    "teacher_forced_loss_before": {
+      "overall": 3.3330505289137364,
+      "by_language": {
+        "en": 4.504466319084168,
+        "ar": 3.6241913340985774,
+        "sorani": 1.870493933558464
+      }
+    },
+    "teacher_forced_loss_after": {
+      "overall": 3.182951983064413,
+      "by_language": {
+        "en": 4.308888018131256,
+        "ar": 3.4792762137949467,
+        "sorani": 1.7606917172670364
+      }
+    },
+    "limitations": "Small unverified pilot; Sorani pairs are automatically matched and machine-translated. Loss is not translation accuracy. The base model may have seen evaluation data."
+  },
+  "decision": {
+    "candidate_accepted": true,
+    "loss_guard_pass": true,
+    "word_guard_pass": true,
+    "limitation": "Small held-out metrics are not a guarantee of translation quality."
+  },
+  "word_evaluation": {
+    "examples": 100,
+    "before_exact": 6,
+    "after_exact": 7,
+    "limitation": "Exact string matches are not a complete measure of quality; the pretrained base may have seen these references."
+  },
+  "filter": {
+    "attempts": 370105,
+    "source_has_reference": 6182,
+    "reference_disagree": 5938,
+    "reference_agree": 244,
+    "limitation": "Normalized spelling agreement with existing references is not independent verification or new ground truth."
+  },
+  "run_url": "https://github.com/s1po0/Translate-badini-/actions/runs/41036334780",
+  "artifact": "balanced-word-training",
+  "expires_at": "2027-01-28T09:50:18Z"
+}

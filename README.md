@@ -217,3 +217,14 @@ are imperfect; dictionary references may contain errors and the base may have
 seen them. No model is automatically promoted on failed guards. The 90-day
 GitHub artifacts are temporary and the demo does not automatically load the
 new checkpoint.
+
+The completed balanced run is
+[41036334780](https://github.com/s1po0/Translate-badini-/actions/runs/41036334780);
+its `balanced-word-training` artifact contains the accepted adapter until
+2027-01-28. Out of 6,182 indexed words with training-side dictionary entries,
+244 teacher outputs agreed after normalization. This is not independent
+verification: alternative valid forms do not count as matches. The 1,200-step
+candidate passed both guards: mean loss on 60 examples was 3.3331 → 3.1830,
+and normalized exact matches on 100 held-out dictionary words were 6 → 7.
+These are small, imperfect tests and do not establish general accuracy. Details
+are in `trained/balanced-word-report.json`.

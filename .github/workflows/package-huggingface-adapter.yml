@@ -1,0 +1,72 @@
+name: Package selected Badini adapter for Hugging Face
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/package-huggingface-adapter.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download latest completed selected adapter
+        uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: source
+      - name: Prepare model files and model card
+        run: |
+          python - <<'PY'
+          import json, pathlib, shutil
+          source, dest = pathlib.Path('source'), pathlib.Path('model')
+          configs = list(source.rglob('accepted-adapter/adapter_config.json'))
+          if len(configs) != 1:
+              raise RuntimeError('Expected one selected adapter')
+          adapter = configs[0].parent
+          config = json.loads(configs[0].read_text())
+          if config.get('base_model_name_or_path') != 'arkanit/badini-nllb-translator':
+              raise RuntimeError('Unexpected base model')
+          if not (adapter / 'adapter_model.safetensors').is_file():
+              raise RuntimeError('Adapter weights are missing')
+          shutil.copytree(adapter, dest)
+          selections = list(source.rglob('selection.json'))
+          if len(selections) != 1:
+              raise RuntimeError('Selection report missing')
+          selection = json.loads(selections[0].read_text())
+          if selection.get('selected') != 'parallel-candidate-balanced':
+              raise RuntimeError('Unexpected selected candidate')
+          shutil.copy2(selections[0], dest / 'selection.json')
+          (dest / 'README.md').write_text('''---
+          library_name: peft
+          base_model: arkanit/badini-nllb-translator
+          tags:
+          - translation
+          - badini
+          - lora
+          license: other
+          ---
+
+          # Experimental Badini translation adapter
+
+          This repository contains a **LoRA adapter**, not a standalone base model. It must be loaded with `arkanit/badini-nllb-translator` and a compatible PEFT/Transformers runtime. The intended directions are English, Arabic, and Sorani to Badini; reverse translation is not supported by this adapter.
+
+          This is the selected `parallel-candidate-balanced` from [GitHub Actions run 41047507896](https://github.com/s1po0/Translate-badini-/actions/runs/41047507896). Its small held-out mean loss was 3.00359 before and 2.95043 after training; exact dictionary matches were 6/100 before and 6/100 after. These numbers do not establish translation quality. Synthetic translations and dialect identification are unverified. Have a native Badini speaker review results before use.
+
+          Training sources include the MIT-licensed [Jad-deeb Kurdish Behdini resources](https://github.com/Jad-deeb/Kurdish-behdini-language-resources), CC BY 4.0 [Ferman data](https://huggingface.co/datasets/OmarSY11/ferman-nlu), and [Dasinya](https://zenodo.org/records/20729060) (CC BY 4.0), alongside synthetic model-generated pairs. The base model derives from Meta NLLB; the upstream [NLLB-200 distilled model](https://huggingface.co/facebook/nllb-200-distilled-600M) is CC BY-NC 4.0, while the Badini derivative reports a different license. Review all upstream licenses and provenance before use, especially commercial use. No license is granted beyond the applicable underlying terms.
+
+          Later training runs may still be in progress. This adapter does not include uncompleted runs or automatically update from user corrections.
+          ''', encoding='utf-8')
+          print('Packaged selected adapter and model card; no new training was performed.')
+          PY
+      - name: Publish downloadable model package
+        uses: actions/upload-artifact@v4
+        with:
+          name: badini-adapter-for-huggingface
+          path: model/
+          if-no-files-found: error
+          retention-days: 90

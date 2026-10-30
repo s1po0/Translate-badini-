@@ -1,0 +1,40 @@
+name: Publish selected Badini adapter to user Hugging Face
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/publish-user-hf-adapter.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check secret is configured
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo '::error::HF_TOKEN is not configured as a repository Actions secret.'
+            exit 1
+          fi
+      - name: Download latest completed selected adapter
+        uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: selected
+      - name: Install Hub client
+        run: python -m pip install 'huggingface_hub==0.36.2'
+      - name: Publish to the user-specified model repository
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: python tools/publish_hf_adapter.py --source selected --repo sipan69/Badini-ai

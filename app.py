@@ -9,7 +9,8 @@ BADINI_MODEL = "arkanit/badini-nllb-translator"
 PIVOT_MODEL = "facebook/nllb-200-distilled-600M"
 LANGUAGES = {"en": "eng_Latn", "badini": "ckb_Arab", "sorani": "ckb_Arab", "ar": "arb_Arab"}
 SUPPORTED_PAIRS = {("en", "badini"), ("badini", "en"), ("sorani", "badini"), ("ar", "badini")}
-MAX_TEXT_LENGTH = 4000
+MAX_TEXT_LENGTH = 500 if os.environ.get("PUBLIC_DEMO") == "1" else 4000
+DEMO_REQUESTS = threading.BoundedSemaphore(2)
 ROOT = Path(__file__).resolve().parent
 
 
@@ -41,7 +42,7 @@ class Translator:
             result = model.generate(
                 **inputs,
                 forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANGUAGES[target]),
-                max_new_tokens=512,
+                max_new_tokens=128 if os.environ.get("PUBLIC_DEMO") == "1" else 512,
             )
         return tokenizer.decode(result[0], skip_special_tokens=True)
 
@@ -107,7 +108,15 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/":
             self.respond(404, {"error": "Not found"})
             return
-        self.respond(200, (ROOT / "static" / "index.html").read_bytes(), "text/html; charset=utf-8")
+        page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        if isinstance(translator, AdapterTranslator):
+            page = page.replace("مۆدێلی ئۆفلاین و تاقیکاری: ئینگلیزی، عەرەبی و سۆرانی → بادینی · کوالێتی لاوازە، ئەنجامەکان بپشکنە", "مۆدێلی AIـی بادینیی ڕاهێنراو · ئینگلیزی، عەرەبی و سۆرانی → بادینی · ئەنجامەکان بپشکنە")
+            page = page.replace('<option value="badini">بادینی</option></select>', '<option value="badini" disabled hidden>بادینی</option></select>', 1)
+            page = page.replace('<option value="en">English</option></select>', '<option value="en" disabled hidden>English</option></select>', 1)
+            page = page.replace('id="swap" aria-label=', 'id="swap" hidden aria-label=')
+        if os.environ.get("PUBLIC_DEMO") == "1":
+            page = page.replace('<form id="form">', '<p>ئەم تاقیکردنەوەیە گشتی و کاتییە؛ زانیاریی تایبەت مەنووسە.</p><form id="form">')
+        self.respond(200, page.encode("utf-8"), "text/html; charset=utf-8")
 
     def do_POST(self):
         if self.path != "/translate":
@@ -125,7 +134,16 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(f"Enter text between 1 and {MAX_TEXT_LENGTH} characters.")
             if not isinstance(source, str) or not isinstance(target, str) or (source, target) not in SUPPORTED_PAIRS:
                 raise ValueError("Unsupported language pair.")
-            result = translator.translate(text.strip(), source, target)
+            if os.environ.get("PUBLIC_DEMO") == "1":
+                if not DEMO_REQUESTS.acquire(blocking=False):
+                    self.respond(429, {"error": "داواکاری زۆرە؛ تکایە دواتر هەوڵ بدەرەوە."})
+                    return
+                try:
+                    result = translator.translate(text.strip(), source, target)
+                finally:
+                    DEMO_REQUESTS.release()
+            else:
+                result = translator.translate(text.strip(), source, target)
             self.respond(200, {"translation": result})
         except (ValueError, json.JSONDecodeError) as exc:
             self.respond(400, {"error": str(exc)})

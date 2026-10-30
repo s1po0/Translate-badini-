@@ -1,0 +1,95 @@
+name: Temporary trained Badini demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths:
+      - '.github/workflows/demo-badini.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - name: Download the trained adapter
+        uses: actions/download-artifact@v4
+        with:
+          name: badini-adapter
+          path: models/badini-adapter
+          run-id: 40986771788
+          github-token: ${{ github.token }}
+      - name: Run and host the demo for 30 minutes
+        env:
+          HOST: 0.0.0.0
+          PORT: '8000'
+          BADINI_ADAPTER_DIR: models/badini-adapter/adapter
+          PUBLIC_DEMO: '1'
+        run: |
+          set -eu
+          python app.py >/tmp/badini-app.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true; if [ -n "${tunnel_pid:-}" ]; then kill "$tunnel_pid" 2>/dev/null || true; fi' EXIT
+          python - <<'PY'
+          import json, time, urllib.request
+          url = 'http://127.0.0.1:8000/'
+          for _ in range(30):
+              try:
+                  urllib.request.urlopen(url, timeout=2).read()
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError('Application did not start')
+          request = urllib.request.Request(url + 'translate', data=json.dumps({'text':'Hello', 'source':'en', 'target':'badini'}).encode(), headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(request, timeout=360) as response:
+              result = json.load(response)
+          if not result.get('translation'):
+              raise RuntimeError('Model smoke test failed')
+          print('Trained adapter loaded and returned a translation.')
+          PY
+          curl -fsSL --retry 3 https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:8000 >/tmp/badini-tunnel.log 2>&1 &
+          tunnel_pid=$!
+          python - <<'PY'
+          import pathlib, re, time, urllib.request
+          path = pathlib.Path('/tmp/badini-tunnel.log')
+          for _ in range(120):
+              text = path.read_text(errors='replace') if path.exists() else ''
+              found = re.search(r'https://[a-z0-9-]+\.trycloudflare\.com', text)
+              if found:
+                  url = found.group(0)
+                  break
+              time.sleep(1)
+          else:
+              print('::error::Public demo tunnel did not start.')
+              raise SystemExit(1)
+          # A public page needs a few seconds to propagate through the tunnel.
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as response:
+                      html = response.read().decode('utf-8')
+                  if 'AIـی بادینیی ڕاهێنراو' in html:
+                      break
+              except Exception:
+                  time.sleep(2)
+          else:
+              print('::error::Public demo did not respond to its health check.')
+              raise SystemExit(1)
+          print(f'::notice title=Public demo URL::{url}', flush=True)
+          print(f'Public temporary demo URL: {url}', flush=True)
+          PY
+          sleep 1800

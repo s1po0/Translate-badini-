@@ -29,3 +29,31 @@ class AdapterServingTest(unittest.TestCase):
             run.assert_called_once_with(server.adapter_path, 'hello', 'en', 'badini')
         with self.assertRaises(ValueError):
             server.translate('بادینی', 'badini', 'en')
+
+
+class AdapterPageTest(unittest.TestCase):
+    def test_public_demo_page_labels_and_limits(self):
+        import os
+        from unittest.mock import patch
+        from http.client import HTTPConnection
+        from http.server import ThreadingHTTPServer
+        import threading
+        import app
+        server = ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        with patch.object(app, 'translator', app.AdapterTranslator('/tmp/adapter')), patch.dict(os.environ, {'PUBLIC_DEMO': '1'}):
+            thread.start()
+            try:
+                conn = HTTPConnection('127.0.0.1', server.server_port)
+                conn.request('GET', '/')
+                response = conn.getresponse()
+                body = response.read().decode()
+                self.assertEqual(response.status, 200)
+                self.assertIn('AIـی بادینیی ڕاهێنراو', body)
+                self.assertIn('زانیاریی تایبەت مەنووسە', body)
+                self.assertIn('id="swap" hidden', body)
+                conn.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join()

@@ -1,0 +1,60 @@
+name: Publish selected parallel Badini model
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/publish-long-selected.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Hub client
+        run: python -m pip install 'huggingface_hub==0.36.2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: parallel-badini-selected
+          run-id: 41047507896
+          github-token: ${{ github.token }}
+          path: original
+      - uses: actions/download-artifact@v4
+        with:
+          name: long-multi-teacher-selected
+          run-id: 41052181009
+          github-token: ${{ github.token }}
+          path: selected
+      - uses: actions/download-artifact@v4
+        with:
+          name: long-candidate-careful-9000
+          run-id: 41052181009
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Verify selection and baseline, then publish
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python tools/publish_long_selected.py --original original --selected selected --candidate candidate --work work > publish.log 2>&1
+          code=$?
+          cat publish.log
+          if [ "$code" -ne 0 ]; then
+            python -c "from pathlib import Path; print('::error title=Publication failed::' + Path('publish.log').read_text()[-3000:].replace('%','%25').replace('\n','%0A').replace('\r','%0D'))"
+            exit "$code"
+          fi
+      - name: Save publication record
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-parallel-selection-record
+          path: |
+            work/baseline-ref.json
+            work/decision.json
+          if-no-files-found: error
+          retention-days: 90

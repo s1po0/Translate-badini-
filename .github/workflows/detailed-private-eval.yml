@@ -1,0 +1,57 @@
+name: Detailed private translation evaluation
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/detailed-private-eval.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install evaluation runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2' 'hf_xet' 'sacrebleu==2.5.1' 'cryptography>=42,<47'
+      - name: Validate exclusion logic
+        run: python -m unittest discover -s tests -p test_detailed_private_eval.py
+      - name: Download the historical source manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: all-accessible-training-data
+          run-id: 41067926210
+          github-token: ${{ github.token }}
+          path: historical
+      - name: Run paired evaluation and seal the result
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          cat > public.pem <<'KEY'
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyHvF5MhsXk0J89XqTEM1
+          k1msmOhOyUSxtwEOY6plD68ngx7VlER0BDp62ooLgWRdvourKdpbJAQAh0s89sPU
+          zHkwY9pe6hsS2cHxsLWLrEMt8y3ziqSewC7yqSbRCg9gkYMOyRzUvf0QU6LRi3yO
+          yvPFY/K0cJT2fmp1DhqtIXnTKnr8WOnF/C12m91lnBHRj+699BVr5pRnDA2DSgBH
+          1Y+Y7ST4sZ07oI499O+I2+USgKpuj8ZcuzZxIO7n13n31gAvgKgSE7Uore4H2AsG
+          gm9xV5Wz6TEUe1fwHtybUp5Rw9KeC9XtCWYmP15YIXa0hjk4Hm7r1hSujjPVxD8+
+          JwIDAQAB
+          -----END PUBLIC KEY-----
+          KEY
+          set +e
+          python tools/detailed_private_eval.py > evaluation.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            tail -c 5000 evaluation.log > failure.txt
+            echo "::error title=Encrypted detailed evaluation failure::$(python tools/encrypt_eval_result.py public.pem failure.txt)"
+            exit "$code"
+          fi
+          echo "::notice title=Encrypted detailed evaluation result::$(python tools/encrypt_eval_result.py public.pem detailed-scores.json)"

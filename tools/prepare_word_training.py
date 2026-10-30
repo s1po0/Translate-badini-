@@ -15,9 +15,9 @@ from train import split_pairs
 from synthetic_batch import valid_badini
 
 
-def prepare(synthetic, output, shard_size, limit=0):
-    if shard_size < 1 or limit < 0:
-        raise ValueError('Invalid shard size or limit')
+def prepare(synthetic, output, shard_size, limit=0, shard_count=0):
+    if shard_size < 1 or limit < 0 or shard_count < 0:
+        raise ValueError('Invalid shard size, count or limit')
     with Path(synthetic).open(encoding='utf-8', newline='') as f:
         rows = list(csv.DictReader(f))
     if not rows:
@@ -38,8 +38,19 @@ def prepare(synthetic, output, shard_size, limit=0):
     root = Path(output)
     root.mkdir(parents=True, exist_ok=True)
     shards = []
-    for offset in range(0, len(training), shard_size):
-        group = training[offset:offset + shard_size]
+    if shard_count:
+        if len(training) < shard_count:
+            raise ValueError('Too few rows for requested shard count')
+        quotient, extra = divmod(len(training), shard_count)
+        groups = []
+        offset = 0
+        for i in range(shard_count):
+            length = quotient + (i < extra)
+            groups.append(training[offset:offset + length])
+            offset += length
+    else:
+        groups = [training[offset:offset + shard_size] for offset in range(0, len(training), shard_size)]
+    for group in groups:
         name = f'{len(shards)+1:04}.csv'
         with (root / name).open('x', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['id', 'source_lang', 'source_text', 'badini'])
@@ -60,8 +71,9 @@ def main():
     p.add_argument('--output', required=True)
     p.add_argument('--shard-size', type=int, default=5000)
     p.add_argument('--limit', type=int, default=0, help='For small pipeline tests only')
+    p.add_argument('--shard-count', type=int, default=0, help='Split training rows into exactly this many shards instead of using shard-size')
     args = p.parse_args()
-    result = prepare(args.synthetic, args.output, args.shard_size, args.limit)
+    result = prepare(args.synthetic, args.output, args.shard_size, args.limit, args.shard_count)
     print('::notice title=Training shard manifest::' + json.dumps(result), flush=True)
 
 

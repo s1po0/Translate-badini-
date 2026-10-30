@@ -47,3 +47,14 @@ class WordShardTests(unittest.TestCase):
         loss, words = decide(report, {'before_exact': 5, 'after_exact': 6, 'examples': 100})
         self.assertFalse(loss)
         self.assertTrue(words)
+
+class ExactShardCountTest(unittest.TestCase):
+    def test_fixed_shard_count_covers_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); source=root/'source.csv'
+            with source.open('w', encoding='utf-8', newline='') as f:
+                w=csv.writer(f);w.writerow(['id','source_lang','source_text','badini'])
+                for i in range(100): w.writerow([str(i),'en',f'word{i}','بادینی'])
+            result=prepare(source,root/'out',5000,shard_count=7)
+            self.assertEqual(len(result['shards']),7)
+            self.assertEqual(sum(s['count'] for s in result['shards']),result['training_rows'])

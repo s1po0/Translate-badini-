@@ -27,3 +27,28 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(write(rows, batches, root/'back'), (2, 1))
             with (root/'back/synthetic.csv').open(encoding='utf-8') as f:
                 self.assertEqual(len(list(csv.DictReader(f))), 1)
+
+class MergeBacktranslationsTests(unittest.TestCase):
+    def test_full_coverage_and_mismatch(self):
+        from tools.merge_badini_backtranslations import merge
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vocab = root/'vocab.gz'
+            with gzip.open(vocab, 'wt', encoding='utf-8', newline='') as f:
+                w=csv.writer(f, delimiter='\t'); w.writerow(['id','badini_word','frequency']); w.writerows([['1','سلاڤ','2'], ['2','ماموستا','1']])
+            batch = root/'batches/one'; batch.mkdir(parents=True)
+            fpath = batch/'backtranslation-attempts.csv'
+            with fpath.open('w', encoding='utf-8', newline='') as f:
+                w=csv.writer(f); w.writerow(['id','badini','frequency','english','passes_filter']); w.writerow(['1','سلاڤ','2','hello','1'])
+            with self.assertRaises(ValueError): merge(vocab, root/'batches', root/'missing')
+            with fpath.open('a', encoding='utf-8', newline='') as f:
+                csv.writer(f).writerow(['2','ماموستا','1','teacher','1'])
+            result=merge(vocab, root/'batches', root/'complete')
+            self.assertEqual((result['attempted'], result['script_pass']), (2,2))
+
+    def test_start_is_one_based(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp)/'vocab.gz'
+            with gzip.open(p, 'wt', encoding='utf-8', newline='') as f:
+                w=csv.writer(f,delimiter='\t');w.writerow(['id','badini_word','frequency']);w.writerows([['1','سلاڤ','2'],['2','ئاڤ','1']])
+            self.assertEqual([r['id'] for r in choose(p,1,start=2)], ['2'])

@@ -6,12 +6,12 @@ from pathlib import Path
 import re
 
 
-def choose(path, count):
-    if count < 1:
-        raise ValueError('count must be positive')
+def choose(path, count, start=1):
+    if count < 1 or start < 1:
+        raise ValueError('start and count must be positive')
     with gzip.open(path, 'rt', encoding='utf-8', newline='') as f:
         rows = list(csv.DictReader(f, delimiter='\t'))
-    return rows[:count]
+    return rows[start-1:start-1+count]
 
 
 def write(rows, batches, output):
@@ -43,13 +43,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--vocabulary', required=True)
     parser.add_argument('--count', type=int, default=512)
+    parser.add_argument('--start', type=int, default=1, help='1-based vocabulary row')
     parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--teacher', default='arkanit/badini-nllb-translator')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error('batch-size must be positive')
-    rows = choose(args.vocabulary, args.count)
+    rows = choose(args.vocabulary, args.count, args.start)
     if not rows:
         raise ValueError('No vocabulary')
     import torch

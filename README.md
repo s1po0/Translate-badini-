@@ -278,3 +278,15 @@ word checks choose the checkpoint, but are small and imperfect; the base model
 may have seen evaluation data. Candidate/selected adapters, vocabulary and
 backtranslations are uploaded as a temporary 90-day GitHub artifact. No live
 server automatically uses this separate candidate.
+
+The full follow-up `.github/workflows/full-badini-vocabulary-training.yml`
+attempts English backtranslation for each of the 98,305 observed forms from
+the corpus, verifies numbered coverage, excludes failed English-script outputs
+and keeps a source-disjoint holdout. It then trains every remaining pair once
+in 20 sequential checkpointed stages with replay and guard checks. A rejected
+stage's candidate is not retained, and no claim of learning all the vocabulary
+or of translation accuracy follows from processing the data. Source words and
+English backtranslations may be incorrect, and the small gates can miss errors.
+The public preview and the separate English-word training workflow do not
+implicitly receive the selected checkpoints. Intermediate artifacts expire;
+GitHub jobs and resources have limits, so an entire run is not guaranteed.

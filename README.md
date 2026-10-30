@@ -301,3 +301,17 @@ loss on 60 examples fell from 3.1830 to 3.0036, while exact matches on 100
 held-out English dictionary words changed from 7 to 6 (the guard permits a
 small regression). The selected adapter and list are in the 90-day
 `dasinya-badini-student` artifact. These small metrics do not prove improvement.
+
+## Parallel training comparison
+
+`.github/workflows/parallel-badini-training.yml` runs four actual CPU training
+jobs concurrently from the *same* accepted Dasinya adapter, with different
+learning rates, seeds and synthetic sample limits. A fifth job compares their
+60-example held-out losses and 100 word exact matches and selects one candidate
+only if it passes the per-language loss guard and does not reduce exact matches;
+otherwise it retains the baseline. These jobs are independent experiments,
+not one model trained on four machines, and LoRA weights are not merged. Their
+small repeated evaluations and unverified teacher labels do not establish
+real-world improvement. Candidate artifacts expire after 2 days and the
+selected adapter after 90 days. This is separate from the sequential full-data
+training, whose stages depend on the preceding checkpoint.

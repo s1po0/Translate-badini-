@@ -1,0 +1,76 @@
+name: Compare parallel Badini training jobs
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/parallel-badini-training.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {name: cautious, limit: 150, lr: '0.00001', seed: 42}
+          - {name: balanced, limit: 350, lr: '0.00002', seed: 42}
+          - {name: broader, limit: 600, lr: '0.00003', seed: 42}
+          - {name: alternative, limit: 350, lr: '0.00001', seed: 43}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4'
+      - uses: actions/download-artifact@v4
+        with:
+          name: dasinya-badini-student
+          run-id: 41041856775
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Train an independent candidate from the same baseline
+        run: |
+          adapter="$(find previous -type d -name accepted-adapter -print -quit)"
+          dataset="$(find previous -path '*/backtranslated/synthetic.csv' -type f -print -quit)"
+          test -f "$adapter/adapter_config.json" && test -f "$dataset"
+          python train_adapter.py --initial-adapter "$adapter" --synthetic-data "$dataset" --synthetic-repeats 1 --synthetic-limit '${{ matrix.limit }}' --steps 600 --per-language 200 --eval-per-language 20 --learning-rate '${{ matrix.lr }}' --seed '${{ matrix.seed }}' --output candidate
+          python tools/evaluate_word_quality.py --before "$adapter" --after candidate/adapter --size 100 --output candidate/word-evaluation.json
+      - name: Upload candidate and evaluation
+        uses: actions/upload-artifact@v4
+        with:
+          name: parallel-candidate-${{ matrix.name }}
+          path: candidate/
+          retention-days: 2
+  select:
+    needs: train
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dasinya-badini-student
+          run-id: 41041856775
+          github-token: ${{ github.token }}
+          path: previous
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: parallel-candidate-*
+          path: candidates
+      - name: Select one passing candidate or retain baseline
+        run: |
+          test "$(find candidates -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 4
+          python tools/select_parallel_candidate.py --candidates candidates --baseline previous --output selected
+      - name: Save selected adapter and comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: parallel-badini-selected
+          path: selected/
+          retention-days: 90

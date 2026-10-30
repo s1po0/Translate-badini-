@@ -1,6 +1,9 @@
 name: Test reviewed-example neural training
 on:
   workflow_dispatch:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/reviewed-training-integration.yml']
 permissions:
   contents: read
   actions: read

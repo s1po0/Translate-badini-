@@ -290,3 +290,14 @@ English backtranslations may be incorrect, and the small gates can miss errors.
 The public preview and the separate English-word training workflow do not
 implicitly receive the selected checkpoints. Intermediate artifacts expire;
 GitHub jobs and resources have limits, so an entire run is not guaranteed.
+
+The verified first corpus experiment completed in
+[run 41041856775](https://github.com/s1po0/Translate-badini-/actions/runs/41041856775):
+107 segmented documents yielded 1,270,173 word tokens and 98,305 distinct
+observed spellings. Of 1,024 word forms sent through the Badini-to-English
+teacher, 1,011 passed a basic English-script check; 350 of those unverified
+pairs were sampled for training. The candidate passed its configured guards:
+loss on 60 examples fell from 3.1830 to 3.0036, while exact matches on 100
+held-out English dictionary words changed from 7 to 6 (the guard permits a
+small regression). The selected adapter and list are in the 90-day
+`dasinya-badini-student` artifact. These small metrics do not prove improvement.

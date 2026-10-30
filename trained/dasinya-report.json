@@ -1,0 +1,59 @@
+{
+  "training": {
+    "base_model": "arkanit/badini-nllb-translator",
+    "optimizer_steps": 1200,
+    "learning_rate": 2e-05,
+    "training_pool_pairs": 950,
+    "initial_adapter": "previous/accepted-adapter",
+    "synthetic_unique_rows": 350,
+    "synthetic_repeats": 1,
+    "training_by_language": {
+      "en": 550,
+      "ar": 200,
+      "sorani": 200
+    },
+    "heldout_pairs": 60,
+    "teacher_forced_loss_before": {
+      "overall": 3.182951983064413,
+      "by_language": {
+        "en": 4.308888018131256,
+        "ar": 3.4792762137949467,
+        "sorani": 1.7606917172670364
+      }
+    },
+    "teacher_forced_loss_after": {
+      "overall": 3.003594735513131,
+      "by_language": {
+        "en": 3.9989283800125124,
+        "ar": 3.3079741396009923,
+        "sorani": 1.7038816869258882
+      }
+    },
+    "limitations": "Small unverified pilot; Sorani pairs are automatically matched and machine-translated. Loss is not translation accuracy. The base model may have seen evaluation data."
+  },
+  "decision": {
+    "candidate_accepted": true,
+    "loss_guard_pass": true,
+    "word_guard_pass": true,
+    "limitation": "Backtranslations are unverified; test scores do not guarantee Badini accuracy."
+  },
+  "word_evaluation": {
+    "examples": 100,
+    "before_exact": 7,
+    "after_exact": 6,
+    "limitation": "Exact string matches are not a complete measure of quality; the pretrained base may have seen these references."
+  },
+  "vocabulary": {
+    "segmented_files": 107,
+    "word_tokens": 1270173,
+    "distinct_observed_forms": 98305,
+    "source": "https://doi.org/10.5281/zenodo.20729060",
+    "source_license": "CC BY 4.0",
+    "limitation": "Observed corpus forms may include OCR errors, names, non-Badini words and variants; not every Badini word."
+  },
+  "run_url": "https://github.com/s1po0/Translate-badini-/actions/runs/41041856775",
+  "artifact": "dasinya-badini-student",
+  "expires_at": "2027-01-28T10:35:27Z",
+  "backtranslation_attempts": 1024,
+  "script_passing_unverified": 1011
+}

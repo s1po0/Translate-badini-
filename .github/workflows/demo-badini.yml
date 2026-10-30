@@ -31,7 +31,7 @@ jobs:
           path: models/badini-adapter
           run-id: 40986771788
           github-token: ${{ github.token }}
-      - name: Run and host the demo for 30 minutes
+      - name: Start and publish the temporary demo
         env:
           HOST: 0.0.0.0
           PORT: '8000'
@@ -39,9 +39,7 @@ jobs:
           PUBLIC_DEMO: '1'
         run: |
           set -eu
-          python app.py >/tmp/badini-app.log 2>&1 &
-          app_pid=$!
-          trap 'kill "$app_pid" 2>/dev/null || true; if [ -n "${tunnel_pid:-}" ]; then kill "$tunnel_pid" 2>/dev/null || true; fi' EXIT
+          nohup python app.py >/tmp/badini-app.log 2>&1 &
           python - <<'PY'
           import json, time, urllib.request
           url = 'http://127.0.0.1:8000/'
@@ -62,8 +60,7 @@ jobs:
           PY
           curl -fsSL --retry 3 https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
-          /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:8000 >/tmp/badini-tunnel.log 2>&1 &
-          tunnel_pid=$!
+          nohup /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:8000 >/tmp/badini-tunnel.log 2>&1 &
           python - <<'PY'
           import pathlib, re, time, urllib.request
           path = pathlib.Path('/tmp/badini-tunnel.log')
@@ -92,4 +89,5 @@ jobs:
           print(f'::notice title=Public demo URL::{url}', flush=True)
           print(f'Public temporary demo URL: {url}', flush=True)
           PY
-          sleep 1800
+      - name: Keep the public demo online for 30 minutes
+        run: sleep 1800

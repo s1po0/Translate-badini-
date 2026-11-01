@@ -1,0 +1,119 @@
+name: Teach private reviewed examples to model
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/train-private-review.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      revision: ${{ steps.prepare.outputs.revision }}
+      base_revision: ${{ steps.prepare.outputs.base_revision }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'cryptography>=42,<47' 'huggingface_hub==0.36.2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: sealed-review-channel
+          run-id: 41353965394
+          github-token: ${{ github.token }}
+          path: sealed
+      - name: Store the user's corrections privately and pin the current model
+        id: prepare
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python tools/private_review_channel.py unseal sealed/sealed-key.json .github/private-review/review.enc reviewed.json > private.log 2>&1 && python tools/private_review_pipeline.py prepare --backup reviewed.json --run-id '${{ github.run_id }}' >> private.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            tail -c 5000 private.log > failure.txt
+            echo "::error title=Encrypted private teaching failure::$(python tools/encrypt_eval_result.py .github/private-review/result-public.pem failure.txt)"
+            exit "$code"
+          fi
+          echo 'Private feedback stored; baseline pinned.'
+  train:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {name: gentle, replay: 80, repeats: 30, lr: '0.00001'}
+          - {name: balanced, replay: 80, repeats: 60, lr: '0.00002'}
+          - {name: focused, replay: 80, repeats: 100, lr: '0.00003'}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install training runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2' 'hf_xet' 'cryptography>=42,<47'
+      - name: Train and encrypt an independent candidate
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python tools/private_review_pipeline.py train --revision '${{ needs.prepare.outputs.revision }}' --base-revision '${{ needs.prepare.outputs.base_revision }}' --feedback-run '${{ github.run_id }}' --repeats '${{ matrix.repeats }}' --replay '${{ matrix.replay }}' --lr '${{ matrix.lr }}' --output candidate.enc > private.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            tail -c 5000 private.log > failure.txt
+            echo "::error title=Encrypted candidate failure::$(python tools/encrypt_eval_result.py .github/private-review/result-public.pem failure.txt)"
+            exit "$code"
+          fi
+          echo 'Private candidate trained and encrypted.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: secure-private-candidate-${{ matrix.name }}
+          path: candidate.enc
+          if-no-files-found: error
+          retention-days: 1
+  finalize:
+    needs: [prepare, train]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install validation runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'peft==0.13.2' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2' 'hf_xet' 'cryptography>=42,<47'
+      - name: Run privacy and guard tests
+        run: python -m unittest discover -s tests -p test_private_review_pipeline.py
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: secure-private-candidate-*
+          path: candidates
+      - name: Select, guard and privately update both model versions
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          set +e
+          python tools/private_review_pipeline.py finalize --revision '${{ needs.prepare.outputs.revision }}' --base-revision '${{ needs.prepare.outputs.base_revision }}' --feedback-run '${{ github.run_id }}' --artifacts candidates --output private-result.json > private.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            tail -c 5000 private.log > failure.txt
+            echo "::error title=Encrypted finalization failure::$(python tools/encrypt_eval_result.py .github/private-review/result-public.pem failure.txt)"
+            exit "$code"
+          fi
+          echo "::notice title=Encrypted private teaching result::$(python tools/encrypt_eval_result.py .github/private-review/result-public.pem private-result.json)"

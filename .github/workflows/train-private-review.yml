@@ -50,9 +50,9 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          - {name: gentle, replay: 80, repeats: 30, lr: '0.00001'}
-          - {name: balanced, replay: 80, repeats: 60, lr: '0.00002'}
-          - {name: focused, replay: 80, repeats: 100, lr: '0.00003'}
+          - {name: gentle, replay: 180, repeats: 30, lr: '0.00001'}
+          - {name: balanced, replay: 150, repeats: 50, lr: '0.00001'}
+          - {name: focused, replay: 120, repeats: 80, lr: '0.00002'}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4

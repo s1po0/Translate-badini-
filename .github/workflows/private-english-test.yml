@@ -1,0 +1,47 @@
+name: Private English translation test
+on:
+  push:
+    branches: [arena/abe27edd-translate-badini]
+    paths: ['.github/workflows/private-english-test.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install runtime
+        run: |
+          python -m pip install 'torch==2.5.1' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'transformers==4.46.3' 'accelerate>=0.26,<2' 'sentencepiece>=0.2' 'protobuf>=3.20' 'safetensors>=0.4' 'huggingface_hub==0.36.2' 'hf_xet' 'cryptography>=42,<47'
+      - name: Translate privately and encrypt results
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          cat > public.pem <<'KEY'
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAweQg0h3BD8VsoXBMDS19
+          VivaDmWO1oWjZ9yweCppvun0GrACCkX/bKfUZ0E9c9YmzW2MYCfz1Ia/XwHCqw+w
+          x2odGd6eW4t86AMW4k/wVj2SXLYkASxjai4CwbuvxeA31DWeAaRv1ZUxT10VZ9R0
+          s94XVyAphnHFHWoRmwheupNUZQjl2RTvM6AyhPZ3t15nNUotv/rJ+eOhWwg8Z2pQ
+          QyJUtlrVoddXvtpu9KEAZmoKbM8o/xjbSUyKBfL6xuHuNwQYvF17UEE0UKFwj2b+
+          pFNBd8YbeNxye02JMEhoLQ7JIdJxkoPdO6VtSmPLFkvBuiQecRTDNlvKVVsGYvvJ
+          LQIDAQAB
+          -----END PUBLIC KEY-----
+          KEY
+          set +e
+          python tools/english_translation_preview.py > private-test.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            tail -c 5000 private-test.log > failure.txt
+            echo "::error title=Encrypted private test failure::$(python tools/encrypt_eval_result.py public.pem failure.txt)"
+            exit "$code"
+          fi
+          echo "::notice title=Encrypted private translations::$(python tools/encrypt_eval_result.py public.pem private-translations.json)"
